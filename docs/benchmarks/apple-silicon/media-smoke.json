@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "clips": [
+    {
+      "start": 2,
+      "duration": 1
+    },
+    {
+      "start": 5,
+      "duration": 1
+    }
+  ],
+  "frames": 60,
+  "duration": 2.0,
+  "width": 1280,
+  "height": 720,
+  "limitations": [
+    "Frame/duration and API smoke check; broader visual cut parity remains gated"
+  ]
+}

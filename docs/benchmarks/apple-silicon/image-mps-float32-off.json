@@ -1,0 +1,45 @@
+{
+  "device": "mps",
+  "precision": "float32",
+  "slicing": "off",
+  "model": "segmind/tiny-sd",
+  "prompt": "A ceramic teapot on a wooden table beside a window, soft daylight, detailed product photograph",
+  "seed": 42,
+  "width": 512,
+  "height": 512,
+  "steps": 20,
+  "load_seconds": 6.576689833998898,
+  "runs": [
+    {
+      "kind": "cold",
+      "seconds": 24.7142319579998,
+      "image": "gen_114673c9.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 23.65978066599928,
+      "image": "gen_4e371612.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 24.370925875000466,
+      "image": "gen_f7578596.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 23.057829375000438,
+      "image": "gen_f6143bb6.png"
+    }
+  ],
+  "warm_median_seconds": 23.65978066599928,
+  "peak_rss_mb": 3205.46875,
+  "swap_growth_mb": 1510.0625,
+  "versions": {
+    "torch": "2.11.0",
+    "diffusers": "0.41.0",
+    "transformers": "5.19.0"
+  },
+  "quality_method": "Visual validity check only; model-specific quality and 2x target remain blockers",
+  "visual_validity_passed": true,
+  "formal_quality_gate_passed": null
+}

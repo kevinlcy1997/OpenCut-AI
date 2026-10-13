@@ -1,0 +1,21 @@
+{
+  "completed": true,
+  "full_acceptance_passed": false,
+  "successful_operations": 168,
+  "failed_operations": 0,
+  "blocked_image_operations": 56,
+  "native_elapsed_seconds": 1809.5723990000042,
+  "playback_elapsed_seconds": 1860.0046000000016,
+  "rendered_frames": 48293,
+  "observed_preview_fps": 25.96391428279261,
+  "swap_growth_from_start_mb": 1065.1875,
+  "swap_growth_after_warmup_window_mb": 664.9375,
+  "memory_window_seconds": 1620.0395190410054,
+  "limitations": [
+    "Image work was blocked by RAM admission; full acceptance remains false",
+    "The recorded rAF threshold scheduler limited cadence; this is not maximum editor playback throughput",
+    "Native process-tree RSS excludes the browser/Docker VM and does not measure all GPU allocation",
+    "Host swap includes unrelated application activity; measured post-warmup window starts about five minutes into the session",
+    "Worker crashes release scheduling ownership; process restoration requires launcher stop/start"
+  ]
+}

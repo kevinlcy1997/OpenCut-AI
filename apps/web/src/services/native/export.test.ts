@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { RootNode } from "../renderer/nodes/root-node";
 import { VideoNode } from "../renderer/nodes/video-node";
 import { ColorNode } from "../renderer/nodes/color-node";
-import { eligibleNativeClips } from "./export";
+import { eligibleNativeClips, audioWav } from "./export";
 
 function video(timeOffset = 0): VideoNode {
 	return new VideoNode({
@@ -71,4 +71,21 @@ describe("native export parity eligibility", () => {
 			),
 		).toBeNull();
 	});
+});
+
+test("native audio upload preserves float samples and gain headroom", async () => {
+	const samples = new Float32Array([0.123456, -1.25]);
+	const audio = {
+		numberOfChannels: 1,
+		sampleRate: 48000,
+		length: 2,
+		getChannelData: () => samples,
+	} as unknown as AudioBuffer;
+	const bytes = await audioWav(audio).arrayBuffer();
+	const header = new DataView(bytes);
+	expect(header.getUint16(20, true)).toBe(3);
+	expect(header.getUint16(34, true)).toBe(32);
+	expect(header.getUint32(40, true)).toBe(8);
+	expect(header.getFloat32(44, true)).toBe(samples[0]);
+	expect(header.getFloat32(48, true)).toBe(-1.25);
 });

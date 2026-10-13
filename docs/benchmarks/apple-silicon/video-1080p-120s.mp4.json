@@ -1,0 +1,114 @@
+{
+  "fixture": "video-1080p-120s.mp4",
+  "browser_version": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "runs": [
+    {
+      "backend": "browser",
+      "kind": "cold",
+      "seconds": 31.229300000000745,
+      "metrics": {
+        "frames": 3600,
+        "renderMs": 1644.499999910593,
+        "encodeSubmissionMs": 28930.600000094622,
+        "finalizeMs": 59,
+        "decodeMs": 678.2999999672174,
+        "copySubmissionMs": 72.7999999821186,
+        "effectsSubmissionMs": 648.000000026077
+      },
+      "asset_id": "6276ae1368544651ad22dc48885a3222",
+      "native_eligible": false,
+      "output": "6276ae1368544651ad22dc48885a3222.mp4",
+      "metadata": {
+        "duration": 120.0,
+        "video": true,
+        "audio": true,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 2
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 29.886199999999256,
+      "metrics": {
+        "frames": 3600,
+        "renderMs": 1435.200000025332,
+        "encodeSubmissionMs": 27825.100000012666,
+        "finalizeMs": 51,
+        "decodeMs": 628.0999999642372,
+        "copySubmissionMs": 72.29999997839332,
+        "effectsSubmissionMs": 505.00000009685755
+      },
+      "asset_id": "c98afde4af7243078f59cbd93cbb20d5",
+      "native_eligible": false,
+      "output": "c98afde4af7243078f59cbd93cbb20d5.mp4",
+      "metadata": {
+        "duration": 120.0,
+        "video": true,
+        "audio": true,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 2
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 30.426800000000746,
+      "metrics": {
+        "frames": 3600,
+        "renderMs": 1468.499999858439,
+        "encodeSubmissionMs": 28350.40000013262,
+        "finalizeMs": 51.80000000074506,
+        "decodeMs": 639.4999998882413,
+        "copySubmissionMs": 68.40000008046627,
+        "effectsSubmissionMs": 521.2999999411404
+      },
+      "asset_id": "cb8b29071fb043e38cd92719e0593ee2",
+      "native_eligible": false,
+      "output": "cb8b29071fb043e38cd92719e0593ee2.mp4",
+      "metadata": {
+        "duration": 120.0,
+        "video": true,
+        "audio": true,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 2
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 30.78310000000149,
+      "metrics": {
+        "frames": 3600,
+        "renderMs": 1438.899999987334,
+        "encodeSubmissionMs": 28693.000000026077,
+        "finalizeMs": 57.5,
+        "decodeMs": 630.2999999932945,
+        "copySubmissionMs": 68.7999999448657,
+        "effectsSubmissionMs": 510.799999974668
+      },
+      "asset_id": "fea937dcab884dc595d4ecbe6f1c367d",
+      "native_eligible": false,
+      "output": "fea937dcab884dc595d4ecbe6f1c367d.mp4",
+      "metadata": {
+        "duration": 120.0,
+        "video": true,
+        "audio": true,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 2
+      }
+    }
+  ]
+}

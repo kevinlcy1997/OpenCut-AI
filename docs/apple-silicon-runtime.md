@@ -1,6 +1,6 @@
 # Native developer launcher
 
-Use native ARM64 macOS with Docker Desktop running. Install native `uv`, Bun 1.2.18, Ollama, FFmpeg and ffprobe with VideoToolbox. From the repository root:
+Use native ARM64 macOS with Docker Desktop running. Install native `uv`, Bun 1.2.18, native Node.js compatible with Next 16 (tested Node 22), Ollama, FFmpeg and ffprobe with VideoToolbox. From the repository root:
 
 ```sh
 ./scripts/mac.sh doctor
@@ -17,3 +17,5 @@ Listeners bind to loopback. Ports: web 3000, backend 8420, workers 8421–8427, 
 Stop verifies recorded process identity and only terminates launcher-owned processes and descendants. It stops this Docker project without removing persistent volumes. The old image-only entry point delegates to the supervisor.
 
 This launcher is the first part of a draft Apple Silicon stack. Subsequent PRs add MLX transcription, cross-process memory coordination, native media jobs and measured validation. Read `docs/apple-silicon.md` in the completed stack before enabling experimental acceleration. Desktop packaging is not included.
+
+The native profile overrides connection URLs in process memory to use its own local PostgreSQL/Redis and site origin. Environment files stay intact. A fresh managed PostgreSQL database receives the repository schema; an unknown or changed existing schema requires a reviewed migration instead of an automatic schema push. Project serialization formats are unchanged.

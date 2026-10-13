@@ -1,0 +1,1142 @@
+{
+  "elapsed_seconds": 1809.5723990000042,
+  "operations": [
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 58.2815182090053
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.245932083002117
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.421025000003283
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.177159083003062
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.201752375003707
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.358165249999729
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.296288583995192
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2575142909990973
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.560323540994432
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.160411625001871
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1499905840028077
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.307835624997097
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.1531799160002265
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.246085166996636
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.600927457999205
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.393219292003778
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.247501249999914
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.820560624997597
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.5624586249978165
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.5183033749999595
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.561758249998093
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.14519004199974
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2278454159968533
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.872271291998914
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.7596727080017445
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1814883749975706
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.047931458997482
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.475586583001132
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.0476060829969356
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.79207545799727
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.699169250001432
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 4.128694000006362
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.602447375000338
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.684908249997534
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.21858025000256
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.818635458002973
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.548915792001935
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.046448417000647
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.771313208999345
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.7314018749966635
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.107549125001242
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.792257375003828
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.840680667002744
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.044175292001455
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.784392500005197
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.640105667000171
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.0459677079998073
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.545747958996799
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.732523416998447
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.0127366249944316
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.540996249997988
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.651866041000176
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.037635417000274
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.55635075000464
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.633465375001833
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.049231000004511
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.563499374999083
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.614817292000225
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.0501641250011744
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.535587708000094
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.912108166994585
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1552420419975533
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 13.78510733400617
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 6.561168249994807
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.092888999999559
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.665333958997508
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.276378332993772
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.401415915999678
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.99520287499763
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.236442624998745
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.445656625000993
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.683906874997774
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.578343790999497
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 4.149819375001243
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.245016416003637
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.91842366700439
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.431664499999897
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.259003499995742
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.556801541999448
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.6392855410013
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.235600542000611
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.636956040994846
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2914535000018077
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 16.748514082995825
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.796352042001672
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.484581959004572
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.549088209001638
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.425550583997392
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1444742920066346
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.24257495799975
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.58634075000009
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2117615829993156
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.277499832998728
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.862293583995779
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.9427006670011906
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.376350459002424
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.430736708003678
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.569516832998488
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.104069291999622
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.12137404200621
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.36794145800377
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.072247709002113
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.29468433400325
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.4208379999981844
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 15.476840292001725
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.572845666996727
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.377795791995595
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.85859658299887
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.024997665997944
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2342952500039246
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.602774665996549
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.008327874995302
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.337204874995223
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.597559042005742
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.742592541995691
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1764824999991106
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.07394179199764
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.041219582999474
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.218254708997847
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.568035459000384
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.9228635000035865
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.167664666994824
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.298320166002668
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.977095834001375
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.227627583000867
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.566842749998614
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.830674958997406
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.1974342500034254
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.328785208002955
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.876089541998226
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 4.304514666000614
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.581099125003675
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.042741375000332
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.428178999994998
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.324865250004223
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.977502041001571
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2635926669972832
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.329503499997372
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 7.863328708997869
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.2091900000013993
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 14.958865874999901
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 8.517091000001528
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 4.04713887500111
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 18.627644209002028
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 9.461303042000509
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.658182332997967
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 17.35666987500008
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 10.017271040997002
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.953516249996028
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 19.946173249998537
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 10.186979207996046
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 4.0750139160008985
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 20.967254791001324
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 10.074796375003643
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.7799803750021965
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 18.558169249998173
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 9.933466333997785
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.746773667000525
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 20.695554249999986
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 10.241672208998352
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.753761416999623
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 20.748628540997743
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 9.466214792002575
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.6466179580020253
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 18.37519054099539
+    },
+    {
+      "operation": "transcribe",
+      "status": "passed",
+      "seconds": 9.544866958000057
+    },
+    {
+      "operation": "llm",
+      "status": "passed",
+      "seconds": 3.7854423750031856
+    },
+    {
+      "operation": "image",
+      "status": "blocked",
+      "reason": "Insufficient measured headroom for validated float32 image working set"
+    },
+    {
+      "operation": "media",
+      "status": "passed",
+      "seconds": 16.00764524999977
+    }
+  ],
+  "peak_process_rss_mb": {
+    "ollama": 99.875,
+    "ollama-proxy": 54.703125,
+    "whisper-service": 453.53125,
+    "tts-service": 8.90625,
+    "image-service": 8.953125,
+    "speaker-service": 9.0,
+    "face-service": 12.296875,
+    "clip-service": 11.1875,
+    "translate-service": 8.9375,
+    "media-service": 24.625,
+    "ai-backend": 10.71875,
+    "web": 0.65625
+  },
+  "swap_growth_mb": 1065.1875,
+  "passed": false,
+  "complete": true
+}

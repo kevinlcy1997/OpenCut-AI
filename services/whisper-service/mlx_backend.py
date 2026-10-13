@@ -9,6 +9,8 @@ import importlib.metadata
 from pathlib import Path
 from types import SimpleNamespace
 
+PINNED_REVISIONS = {"base": "1e3e249fb8d01c655324bd6841b1deadffd6d04c"}
+
 MODELS = {name: f"mlx-community/whisper-{name}-mlx" for name in ("tiny", "base", "small", "medium", "large-v3")}
 
 
@@ -17,7 +19,7 @@ def default_precision(size):
     if path.exists() and os.getenv("OPENCUT_MAC_HARDWARE"):
         profiles = json.loads(path.read_text()).get("whisper", [])
         for profile in profiles:
-            if profile["hardware_model"] == os.environ["OPENCUT_MAC_HARDWARE"] and profile["model"] == size and profile["quality_passed"] and profile["speedup"] >= 2:
+            if str(profile.get("macos_major")) == platform.mac_ver()[0].split(".")[0] and profile.get("model_revision") == PINNED_REVISIONS.get(size) and profile["hardware_model"] == os.environ["OPENCUT_MAC_HARDWARE"] and profile["model"] == size and profile["quality_passed"] and profile["speedup"] >= 2:
                 if importlib.metadata.version("mlx-whisper") == profile["mlx_whisper_version"] and importlib.metadata.version("mlx") == profile["mlx_version"]:
                     return profile["precision"]
     return "float32"
@@ -54,13 +56,15 @@ class MLXModel:
     def __init__(self, size):
         if size not in MODELS:
             raise ValueError(f"Unsupported MLX model size: {size}")
-        self.path = MODELS[size]
+        from huggingface_hub import snapshot_download
+        self.revision = PINNED_REVISIONS.get(size)
+        self.path = snapshot_download(repo_id=MODELS[size], revision=self.revision)
         self.module = importlib.import_module("mlx_whisper.transcribe")
         import mlx.core as mx
         self.precision = os.getenv("WHISPER_MLX_PRECISION") or default_precision(size)
         if self.precision not in {"float32", "float16"}:
             raise ValueError("WHISPER_MLX_PRECISION must be float32 or float16")
-        # Neither path quantizes weights; half precision is an explicit experiment.
+        # Neither path quantizes weights; half precision needs a validated profile or explicit override.
         self.module.ModelHolder.get_model(self.path, getattr(mx, self.precision))
 
     def transcribe(self, audio_path, language=None, **kwargs):

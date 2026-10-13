@@ -79,6 +79,10 @@ export async function generateProxy(
 		}
 		if (
 			session &&
+			resolution === "720p" &&
+			origWidth === 3840 &&
+			origHeight === 2160 &&
+			Math.abs(fps - 30) < 0.001 &&
 			Math.abs(duration * fps - Math.round(duration * fps)) < 0.0001
 		) {
 			const ids: string[] = [];
@@ -88,13 +92,17 @@ export async function generateProxy(
 						signal: options.signal,
 					})
 				).json();
-				if (capabilities.automatic.proxy) {
+				if (
+					capabilities.automatic.proxy &&
+					capabilities.validated_browser?.proxy === navigator.userAgent
+				) {
 					const id = await uploadNative(session, file, options.signal);
 					ids.push(id);
 					const blob = await runNativeJob(
 						session,
 						{
 							kind: "proxy",
+							validated_profile: "4k-sdr-30fps",
 							clips: [{ asset_id: id, start: 0, duration }],
 							width: Math.max(2, Math.round(proxyWidth / 2) * 2),
 							height: Math.max(2, Math.round(proxyHeight / 2) * 2),

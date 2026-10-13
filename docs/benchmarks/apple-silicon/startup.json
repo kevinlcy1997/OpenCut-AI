@@ -1,0 +1,40 @@
+{
+  "runs": [
+    {
+      "seconds": 14.035756875004154,
+      "hardware_model": "Mac16,1",
+      "platform": "macOS-27.0-arm64-arm-64bit",
+      "python": "3.11.14",
+      "measurement": "fresh service processes with cached infrastructure/dependencies",
+      "heavy_model_loads_included": false,
+      "peak_owned_process_tree_rss_mb": 1612.265625,
+      "swap_growth_mb": 0.0
+    },
+    {
+      "seconds": 13.265599333994032,
+      "hardware_model": "Mac16,1",
+      "platform": "macOS-27.0-arm64-arm-64bit",
+      "python": "3.11.14",
+      "measurement": "fresh service processes with cached infrastructure/dependencies",
+      "heavy_model_loads_included": false,
+      "peak_owned_process_tree_rss_mb": 1766.234375,
+      "swap_growth_mb": -8.0
+    },
+    {
+      "seconds": 13.569510041998,
+      "hardware_model": "Mac16,1",
+      "platform": "macOS-27.0-arm64-arm-64bit",
+      "python": "3.11.14",
+      "measurement": "fresh service processes with cached infrastructure/dependencies",
+      "heavy_model_loads_included": false,
+      "peak_owned_process_tree_rss_mb": 1545.703125,
+      "swap_growth_mb": 0.0
+    }
+  ],
+  "median_seconds": 13.569510041998,
+  "limitations": [
+    "Infrastructure images/dependencies are cached",
+    "Process-tree RSS is not total GPU allocation; Docker VM memory is excluded",
+    "Heavy model cold loading is measured separately"
+  ]
+}

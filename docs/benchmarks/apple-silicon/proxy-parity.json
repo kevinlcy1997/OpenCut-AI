@@ -1,0 +1,15 @@
+{
+  "browser_version": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "speedup": 0.5500140268191949,
+  "frames_equal": true,
+  "duration_difference_seconds": 0.0,
+  "ssim": 0.963517,
+  "audio_offset_ms": null,
+  "effects_rejected": true,
+  "parity_passed": false,
+  "automatic_proxy_passed": false,
+  "limitations": [
+    "Single 4K SDR 30fps source; other source profiles require additional validation",
+    "Visual comparison is against browser output, not source compression quality"
+  ]
+}

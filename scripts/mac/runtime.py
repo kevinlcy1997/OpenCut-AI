@@ -1,6 +1,7 @@
 """Native development supervisor. Run: python3 scripts/mac/runtime.py COMMAND."""
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import platform
@@ -25,6 +26,7 @@ SERVICES = {
 
 def run(args, **kwargs):
     environment = dict(os.environ, UV_CACHE_DIR=str(STATE / "uv-cache"), UV_PYTHON_INSTALL_DIR=str(STATE / "python"))
+    environment.update(kwargs.pop("env", {}))
     return subprocess.run(args, check=True, env=environment, **kwargs)
 
 
@@ -32,6 +34,9 @@ def executable(name):
     path = shutil.which(name)
     if not path:
         raise RuntimeError(f"Missing {name}; install its native ARM64 version and add it to PATH")
+    architecture = subprocess.run(["file", "-L", path], check=True, capture_output=True, text=True).stdout
+    if "Mach-O" in architecture and "arm64" not in architecture:
+        raise RuntimeError(f"{name} is an Intel executable; install its native ARM64 version")
     run([path, "-version" if name in {"ffmpeg", "ffprobe"} else "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return path
 
@@ -39,7 +44,7 @@ def executable(name):
 def preflight():
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         raise RuntimeError("Use native ARM64 Python on Apple Silicon macOS")
-    for tool in ("uv", "bun", "ffmpeg", "ffprobe", "docker", "ollama"):
+    for tool in ("uv", "bun", "node", "ffmpeg", "ffprobe", "docker", "ollama"):
         executable(tool)
     run(["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -141,6 +146,18 @@ def setup():
     run(["bun", "install", "--frozen-lockfile"], cwd=ROOT)
 
 
+def initialize_database(env):
+    """Create this profile's fresh schema; never push over existing user data."""
+    signature = hashlib.sha256(b"".join(path.read_bytes() for path in sorted((ROOT / "apps/web/src/lib/db").glob("schema*.ts")))).hexdigest()
+    marker = STATE / "database-schema.json"
+    count = run(infrastructure() + ["exec", "-T", "db", "psql", "-U", "opencut", "-d", "opencut", "-Atc", "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"], capture_output=True, text=True).stdout.strip()
+    if count == "0":
+        run(["bun", "run", "--cwd", "apps/web", "db:push:local"], cwd=ROOT, env=dict(env, NODE_ENV="development"))
+        marker.write_text(json.dumps({"schema_sha256": signature}))
+    elif not marker.exists() or json.loads(marker.read_text()).get("schema_sha256") != signature:
+        raise RuntimeError("Existing native database schema needs a reviewed migration; refusing an automatic schema push")
+
+
 def stop(entries):
     for name, entry in reversed(list(entries.items())):
         if name == "infrastructure":
@@ -165,6 +182,7 @@ def stop(entries):
 
 
 def start():
+    started = time.perf_counter()
     preflight()
     entries = read_state()
     if entries:
@@ -177,7 +195,10 @@ def start():
     for path in (STATE / "lease.json",):
         path.unlink(missing_ok=True)
     model = subprocess.run(["sysctl", "-n", "hw.model"], capture_output=True, text=True)
-    env = dict(os.environ, OPENCUT_MAC_HARDWARE=model.stdout.strip(), OPENCUTAI_HOST="127.0.0.1", OPENCUTAI_AI_LLM_BACKEND="ollama",
+    env = dict(os.environ, OPENCUT_MAC_HARDWARE=model.stdout.strip(), OPENCUTAI_HOST="127.0.0.1", OPENCUTAI_PORT="8420", OPENCUTAI_AI_LLM_BACKEND="ollama",
+               DATABASE_URL="postgresql://opencut:opencut@127.0.0.1:5432/opencut",
+               UPSTASH_REDIS_REST_URL="http://127.0.0.1:8079", UPSTASH_REDIS_REST_TOKEN="example_token",
+               NEXT_PUBLIC_SITE_URL="http://127.0.0.1:3000", NEXT_PUBLIC_AI_BACKEND_URL="http://127.0.0.1:8420",
                OPENCUTAI_OLLAMA_URL="http://127.0.0.1:11435", OPENCUTAI_REDIS_URL="redis://127.0.0.1:6380",
                OPENCUT_OLLAMA_UPSTREAM="http://127.0.0.1:11436", OLLAMA_HOST="127.0.0.1:11436",
                OLLAMA_MODELS=str(STATE / "models/ollama"),
@@ -212,6 +233,7 @@ def start():
         entries["infrastructure"] = {"project": "opencut-mac"}
         save(entries)
         run(infrastructure() + ["up", "-d", "--wait"])
+        initialize_database(env)
         launch("ollama", ["ollama", "serve"], ROOT, "http://127.0.0.1:11436/api/tags")
         backend_python = str(ROOT / "services/ai-backend/.venv/bin/python")
         launch("ollama-proxy", [backend_python, "-m", "uvicorn", "ollama_proxy:app", "--host", "127.0.0.1", "--port", "11435"], ROOT, "http://127.0.0.1:11435/health")
@@ -219,7 +241,8 @@ def start():
             directory = ROOT / "services" / name
             launch(name, [str(directory / ".venv/bin/python"), "-m", "uvicorn", "bootstrap:app", "--host", "127.0.0.1", "--port", str(port)], directory, f"http://127.0.0.1:{port}/health")
         launch("ai-backend", [backend_python, "run.py"], ROOT / "services/ai-backend", "http://127.0.0.1:8420/health")
-        launch("web", ["bun", "run", "--cwd", "apps/web", "dev", "--hostname", "127.0.0.1"], ROOT, "http://127.0.0.1:3000")
+        launch("web", ["bun", "run", "--cwd", "apps/web", "dev", "--hostname", "127.0.0.1", "--port", "3000"], ROOT, "http://127.0.0.1:3000")
+        (STATE / "startup.json").write_text(json.dumps({"seconds": time.perf_counter() - started, "hardware_model": model.stdout.strip(), "platform": platform.platform(), "python": platform.python_version(), "measurement": "fresh service processes with cached infrastructure/dependencies", "heavy_model_loads_included": False}, indent=2))
         print("OpenCut: http://127.0.0.1:3000; model downloads occur on demand")
     except BaseException:
         stop(entries)
@@ -237,6 +260,7 @@ def main():
         if not (ROOT / "services" / name).is_dir():
             del SERVICES[name]
     STATE.mkdir(mode=0o700, exist_ok=True)
+    STATE.chmod(0o700)
     with (STATE / "supervisor.lock").open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if not (STATE / "token").exists():

@@ -54,7 +54,7 @@ export function eligibleNativeClips(
 
 export function audioWav(audio: AudioBuffer): Blob {
 	const channels = audio.numberOfChannels;
-	const length = audio.length * channels * 2;
+	const length = audio.length * channels * 4;
 	const buffer = new ArrayBuffer(44 + length);
 	const view = new DataView(buffer);
 	const text = (offset: number, value: string) => {
@@ -66,12 +66,12 @@ export function audioWav(audio: AudioBuffer): Blob {
 	text(8, "WAVE");
 	text(12, "fmt ");
 	view.setUint32(16, 16, true);
-	view.setUint16(20, 1, true);
+	view.setUint16(20, 3, true);
 	view.setUint16(22, channels, true);
 	view.setUint32(24, audio.sampleRate, true);
-	view.setUint32(28, audio.sampleRate * channels * 2, true);
-	view.setUint16(32, channels * 2, true);
-	view.setUint16(34, 16, true);
+	view.setUint32(28, audio.sampleRate * channels * 4, true);
+	view.setUint16(32, channels * 4, true);
+	view.setUint16(34, 32, true);
 	text(36, "data");
 	view.setUint32(40, length, true);
 	const samples = Array.from({ length: channels }, (_, i) =>
@@ -80,13 +80,11 @@ export function audioWav(audio: AudioBuffer): Blob {
 	let offset = 44;
 	for (let i = 0; i < audio.length; i++)
 		for (let channel = 0; channel < channels; channel++) {
-			const sample = Math.max(-1, Math.min(1, samples[channel][i]));
-			view.setInt16(
-				offset,
-				Math.round(sample * (sample < 0 ? 32768 : 32767)),
-				true,
-			);
-			offset += 2;
+			const sample = samples[channel][i];
+			if (!Number.isFinite(sample))
+				throw new Error("Audio mix contains non-finite samples");
+			view.setFloat32(offset, sample, true);
+			offset += 4;
 		}
 	return new Blob([buffer], { type: "audio/wav" });
 }
@@ -103,12 +101,25 @@ export async function nativeExport(options: {
 }): Promise<ArrayBuffer | null> {
 	const clips = eligibleNativeClips(options.root, options.fps);
 	if (!clips) return null;
+	// Automatic parity currently covers this single-source output profile.
+	if (
+		clips.length !== 1 ||
+		options.width !== 3840 ||
+		options.height !== 2160 ||
+		options.fps !== 30 ||
+		options.quality !== "high"
+	)
+		return null;
 	const session = await nativeSession();
 	if (!session) return null;
 	const capabilities: NativeCapabilities = await (
 		await nativeRequest(session, "/capabilities", { signal: options.signal })
 	).json();
-	if (!capabilities.automatic.export) return null;
+	if (
+		!capabilities.automatic.export ||
+		capabilities.validated_browser?.export !== navigator.userAgent
+	)
+		return null;
 	const ids: string[] = [];
 	try {
 		const map = new Map<File, string>();
@@ -136,6 +147,7 @@ export async function nativeExport(options: {
 			session,
 			{
 				kind: "export",
+				validated_profile: "4k-sdr-30fps",
 				width: options.width,
 				height: options.height,
 				fps: options.fps,

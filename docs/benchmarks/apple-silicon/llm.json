@@ -1,0 +1,94 @@
+{
+  "cpu": {
+    "runs": [
+      {
+        "kind": "cold",
+        "seconds": 55.11171412499971,
+        "eval_count": 128,
+        "eval_duration_ns": 27136830999,
+        "load_duration_ns": 26077412166,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into manageable parts:\n\n1. **Choose Your Video Format:**\n   - Decide on the format of your video. Common formats include YouTube Shorts, Instagram Stories, or Vimeo videos.\n   - Consider the length and quality of your video.\n\n2. **Select Your Podcast:**\n   - Choose a podcast that fits well with your video format.\n   - Ensure the podcast is compatible with the video format you're using.\n\n3. **Record Your Podcast:**\n   - Use a microphone to record your podcast.\n   - Make sure the audio quality meets the requirements of your"
+      },
+      {
+        "kind": "warm",
+        "seconds": 24.800480124999012,
+        "eval_count": 128,
+        "eval_duration_ns": 23427062625,
+        "load_duration_ns": 71763917,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into smaller tasks. Here's a detailed guide on how to do it:\n\n1. **Choose Your Video Format:**\n   - Decide whether you want your video to be a single video or multiple videos.\n   - If you're going for a single video, choose the format that best suits your needs.\n\n2. **Select Your Podcast:**\n   - Choose a podcast that fits your style and preferences.\n   - Make sure it has a clear structure with episodes (or chapters) that are easy to follow.\n\n3. **Create an Outline:**\n   - Write"
+      },
+      {
+        "kind": "warm",
+        "seconds": 23.64888974999849,
+        "eval_count": 128,
+        "eval_duration_ns": 22479843748,
+        "load_duration_ns": 51425166,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into smaller tasks. Here's a detailed guide on how to do it:\n\n1. **Choose Your Video Format:**\n   - Decide whether you want your video to be a single video or multiple videos.\n   - If you're going for a single video, choose the format that best suits your needs.\n\n2. **Select Your Podcast:**\n   - Choose a podcast that fits your style and preferences.\n   - Make sure it has a clear structure with episodes (or chapters) that are easy to follow.\n\n3. **Create an Outline:**\n   - Write"
+      },
+      {
+        "kind": "warm",
+        "seconds": 23.52892745799909,
+        "eval_count": 128,
+        "eval_duration_ns": 22334357089,
+        "load_duration_ns": 54715875,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into smaller tasks. Here's a detailed guide on how to do it:\n\n1. **Choose Your Video Format:**\n   - Decide whether you want your video to be a single video or multiple videos.\n   - If you're going for a single video, choose the format that best suits your needs.\n\n2. **Select Your Podcast:**\n   - Choose a podcast that fits your style and preferences.\n   - Make sure it has a clear structure with episodes (or chapters) that are easy to follow.\n\n3. **Create an Outline:**\n   - Write"
+      }
+    ],
+    "warm_median_seconds": 23.64888974999849
+  },
+  "metal": {
+    "runs": [
+      {
+        "kind": "cold",
+        "seconds": 5.247665750001033,
+        "eval_count": 128,
+        "eval_duration_ns": 1654601421,
+        "load_duration_ns": 2012905875,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into manageable parts:\n\n1. **Choose Your Video Format**: Decide on the format of your video. Common formats include YouTube Shorts, Instagram Stories, or Vimeo videos.\n\n2. **Select Your Podcast**: Choose which episodes you want to convert into videos. Make sure they are in a format compatible with your chosen video platform (e.g., MP3 for YouTube Shorts).\n\n3. **Edit the Audio**: Use audio editing software like Audacity or Adobe Audition to clean up the audio, remove background noise, and adjust the volume.\n\n4. **Add Background Music**:"
+      },
+      {
+        "kind": "warm",
+        "seconds": 2.364994833002129,
+        "eval_count": 128,
+        "eval_duration_ns": 1341279416,
+        "load_duration_ns": 61081042,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into manageable parts:\n\n1. **Choose Your Video Format**: Decide on the format of your video. Common formats include YouTube Shorts, Instagram Stories, or Vimeo videos.\n\n2. **Select Your Podcast**: Choose which episodes you want to convert into videos. Make sure they are in a format compatible with your chosen video platform (e.g., MP3 for YouTube Shorts).\n\n3. **Edit the Audio**: Use audio editing software like Audacity or Adobe Audition to clean up the audio, remove background noise, and adjust the volume.\n\n4. **Add Background Music**:"
+      },
+      {
+        "kind": "warm",
+        "seconds": 2.3815586249984335,
+        "eval_count": 128,
+        "eval_duration_ns": 1470272206,
+        "load_duration_ns": 52938042,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into manageable parts:\n\n1. **Choose Your Video Format**: Decide on the format of your video. Common formats include YouTube Shorts, Instagram Stories, or Vimeo videos.\n\n2. **Select Your Podcast**: Choose which episodes you want to convert into videos. Make sure they are in a format compatible with your chosen video platform (e.g., MP3 for YouTube Shorts).\n\n3. **Edit the Audio**: Use audio editing software like Audacity or Adobe Audition to clean up the audio, remove background noise, and adjust the volume.\n\n4. **Add Background Music**:"
+      },
+      {
+        "kind": "warm",
+        "seconds": 2.7088380420027534,
+        "eval_count": 128,
+        "eval_duration_ns": 1682448708,
+        "load_duration_ns": 48609792,
+        "response": "Editing a podcast into a short video involves several steps that can be broken down into manageable parts:\n\n1. **Choose Your Video Format**: Decide on the format of your video. Common formats include YouTube Shorts, Instagram Stories, or Vimeo videos.\n\n2. **Select Your Podcast**: Choose which episodes you want to convert into videos. Make sure they are in a format compatible with your chosen video platform (e.g., MP3 for YouTube Shorts).\n\n3. **Edit the Audio**: Use audio editing software like Audacity or Adobe Audition to clean up the audio, remove background noise, and adjust the volume.\n\n4. **Add Background Music**:"
+      }
+    ],
+    "warm_median_seconds": 2.3815586249984335
+  },
+  "model_metadata": {
+    "name": "qwen2.5:0.5b",
+    "model": "qwen2.5:0.5b",
+    "modified_at": "2026-10-13T15:28:42.71303485+08:00",
+    "size": 397821319,
+    "digest": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen2",
+      "families": [
+        "qwen2"
+      ],
+      "parameter_size": "494.03M",
+      "quantization_level": "Q4_K_M"
+    }
+  },
+  "speedup": 9.930005292233377
+}

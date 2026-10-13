@@ -48,7 +48,7 @@ async def status(request: Request):
                 return name, {"status": "unavailable"}
         services = dict(await asyncio.gather(*(health(n, p) for n, p in ports.items())))
         try:
-            response = await client.get("http://127.0.0.1:8421/native/status")
+            response = await client.get("http://127.0.0.1:11435/native/status")
             response.raise_for_status()
             coordination = response.json()
         except (httpx.HTTPError, ValueError):
@@ -68,7 +68,7 @@ class CancelTicket(BaseModel):
 async def cancel(request: Request, value: CancelTicket):
     require_native(request)
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.post("http://127.0.0.1:8421/native/cancel", json=value.model_dump(),
+        response = await client.post("http://127.0.0.1:11435/native/cancel", json=value.model_dump(),
                                      headers={"X-OpenCut-Internal": os.environ["OPENCUT_MEDIA_TOKEN"]})
         if response.is_error:
             raise HTTPException(response.status_code, response.text)

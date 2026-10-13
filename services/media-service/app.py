@@ -4,12 +4,14 @@ from contextlib import asynccontextmanager
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import secrets
 import shutil
 import time
 import tempfile
 import uuid
+from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +24,8 @@ LIMIT = 10 * 1024**3
 ASSET_LIMIT = 2 * 1024**3
 TOKEN = os.getenv("OPENCUT_MEDIA_TOKEN", "")
 ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+INPUT_FORMATS = "mov,matroska,webm,wav,mp3,flac,ogg,aac,mpegts"
+INPUT_OPTIONS = ["-protocol_whitelist", "file,pipe", "-format_whitelist", INPUT_FORMATS]
 assets = {}
 jobs = {}
 tasks = {}
@@ -44,6 +48,7 @@ class JobRequest(BaseModel):
     fps: float = Field(default=30, ge=1, le=60)
     bitrate: int = Field(default=8_000_000, ge=100_000, le=100_000_000)
     audio_asset_id: str | None = None
+    validated_profile: Literal["4k-sdr-30fps"] | None = None
 
 
 def disk_usage():
@@ -59,6 +64,10 @@ def command(request, output):
         if clip.asset_id not in assets:
             raise ValueError("Unknown asset ID")
         info = assets[clip.asset_id].get("metadata", {})
+        if request.validated_profile and (info.get("codec") != "h264" or info.get("width") != 3840 or info.get("height") != 2160 or abs(info.get("fps", 0) - 30) > .001):
+            raise ValueError("Source is outside the validated native media profile")
+        if request.validated_profile and (info.get("pixel_format") not in {"yuv420p", "nv12"} or info.get("color_primaries") not in {None, "unknown", "bt709"}):
+            raise ValueError("Source color/bit-depth is outside the validated native profile")
         if info.get("hdr"):
             raise ValueError("HDR is not supported by the native parity profile")
         if info.get("rotated") or (info.get("fps") and abs(info["fps"] - request.fps) > .001) or info.get("variable_rate"):
@@ -67,7 +76,7 @@ def command(request, output):
             raise ValueError("Native trims require frame-aligned source times")
         if info.get("duration") and clip.start + clip.duration > info["duration"] + 1 / request.fps:
             raise ValueError("Clip exceeds its source duration")
-        args += ["-hwaccel", "videotoolbox", "-i", str(assets[clip.asset_id]["path"])]
+        args += [*INPUT_OPTIONS, "-hwaccel", "videotoolbox", "-i", str(assets[clip.asset_id]["path"])]
         if len(request.clips) > 1 and request.kind == "proxy":
             raise ValueError("Proxy jobs require exactly one source clip")
         frames = round(clip.duration * request.fps)
@@ -84,7 +93,7 @@ def command(request, output):
             raise ValueError("Unknown audio asset ID")
         if assets[request.audio_asset_id].get("metadata", {}).get("audio_channels", 2) > 2:
             raise ValueError("Native audio parity profile supports mono/stereo only")
-        args += ["-i", str(assets[request.audio_asset_id]["path"])]
+        args += [*INPUT_OPTIONS, "-i", str(assets[request.audio_asset_id]["path"])]
     args += ["-filter_complex", ";".join(filters), "-map", "[outv]"]
     if request.audio_asset_id:
         args += ["-map", f"{len(request.clips)}:a:0", "-c:a", "aac", "-b:a", "192k"]
@@ -98,7 +107,7 @@ def command(request, output):
 
 
 async def probe(path):
-    process = await asyncio.create_subprocess_exec("ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec("ffprobe", "-v", "error", *INPUT_OPTIONS, "-show_streams", "-show_format", "-of", "json", str(path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         output, _ = await asyncio.wait_for(process.communicate(), 30)
     except BaseException:
@@ -117,9 +126,11 @@ async def probe(path):
         except (ValueError, ZeroDivisionError, AttributeError):
             return 0
     return {"duration": float(info.get("format", {}).get("duration", 0)),
+            "width": video.get("width"), "height": video.get("height"),
+            "codec": video.get("codec_name"), "pixel_format": video.get("pix_fmt"), "color_primaries": video.get("color_primaries"),
             "video": any(s.get("codec_type") == "video" for s in streams),
             "audio": any(s.get("codec_type") == "audio" for s in streams),
-            "hdr": any(s.get("color_transfer") in {"smpte2084", "arib-std-b67"} for s in streams),
+            "hdr": any(s.get("color_transfer") in {"smpte2084", "arib-std-b67"} or any("dv_profile" in data or "Mastering display" in data.get("side_data_type", "") for data in s.get("side_data_list", [])) for s in streams),
             "fps": rate(video.get("avg_frame_rate", "0/1")),
             "variable_rate": abs(rate(video.get("avg_frame_rate", "0/1")) - rate(video.get("r_frame_rate", "0/1"))) > .001,
             "rotated": any(s.get("rotation", 0) != 0 for s in video.get("side_data_list", [])),
@@ -127,17 +138,21 @@ async def probe(path):
 
 
 _hardware_available = None
+_ffmpeg_version = None
 _hardware_lock = asyncio.Lock()
 
 
 async def capabilities():
-    global _hardware_available
+    global _hardware_available, _ffmpeg_version
     async with _hardware_lock:
         if _hardware_available is None:
             _hardware_available = False
             if shutil.which("ffmpeg"):
                 proc = None
                 try:
+                    version = await asyncio.create_subprocess_exec("ffmpeg", "-version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                    version_output, _ = await version.communicate()
+                    _ffmpeg_version = version_output.decode(errors="replace").splitlines()[0]
                     # Listing an encoder does not establish usable hardware.
                     proc = await asyncio.create_subprocess_exec("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=size=128x128:rate=30", "-frames:v", "1", "-pix_fmt", "nv12", "-c:v", "h264_videotoolbox", "-allow_sw", "0", "-f", "null", "-", stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
                     await asyncio.wait_for(proc.wait(), timeout=10)
@@ -151,8 +166,14 @@ async def capabilities():
     automatic = {}
     for kind in ("proxy", "export"):
         gate = gates.get(kind, {})
-        automatic[kind] = hardware and gate.get("parity_passed") is True and gate.get("speedup", 0) >= 1.25
+        profile = gate.get("profile", {})
+        width, height = (1280, 720) if kind == "proxy" else (3840, 2160)
+        validated = profile.get("source") == "4k-sdr-30fps" and profile.get("output_width") == width and profile.get("output_height") == height and gate.get("hardware_model") == os.getenv("OPENCUT_MAC_HARDWARE") and gate.get("implementation_sha256") == hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        validated = validated and bool(_ffmpeg_version) and gate.get("ffmpeg_version") == _ffmpeg_version and gate.get("macos_major") == platform.mac_ver()[0].split(".")[0]
+        automatic[kind] = hardware and validated and gate.get("parity_passed") is True and gate.get("speedup", 0) >= 1.25
     return {"hardware_available": hardware, "automatic": automatic,
+            "ffmpeg_version": _ffmpeg_version,
+            "validated_browser": {kind: gates.get(kind, {}).get("browser_version") for kind in ("proxy", "export")},
             "experimental": True, "supported": ["cuts", "trims", "contain-scale", "pre-mixed-audio"],
             "excluded": ["effects", "transitions", "text", "masks", "speed-changes", "HDR"]}
 

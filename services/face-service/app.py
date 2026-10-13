@@ -7,6 +7,7 @@ auto-reframe (16:9 → 9:16) by centering on the active speaker's face.
 
 import json
 import logging
+import importlib.util
 import os
 import subprocess
 import uuid
@@ -144,7 +145,7 @@ async def health():
         "model": {
             "loaded": model_loaded,
             "name": "mediapipe-face-detection",
-            "installed": True,
+            "installed": importlib.util.find_spec("mediapipe") is not None,
             "device": "cpu",
         },
         "version": "0.1.0",

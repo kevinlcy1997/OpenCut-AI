@@ -1,5 +1,5 @@
 import unittest
-from mlx_backend import choose_backend, restore_segment, MLXModel
+from mlx_backend import choose_backend, restore_segment, MLXModel, default_precision, PINNED_REVISIONS
 from unittest.mock import patch, Mock
 from types import SimpleNamespace
 import numpy as np
@@ -30,6 +30,15 @@ class MLXTests(unittest.TestCase):
                                    "words": [{"word": "x", "start": 7, "end": 3}]}, 20, 5)
         self.assertEqual((segment.start, segment.end), (20, 25))
         self.assertEqual((segment.words[0].start, segment.words[0].end), (25, 25))
+
+    def test_precision_profile_requires_validated_weights_and_versions(self):
+        versions = {"mlx-whisper": "0.4.3", "mlx": "0.29.3"}
+        with patch.dict("os.environ", {"OPENCUT_MAC_HARDWARE": "Mac16,1"}), patch("mlx_backend.platform.mac_ver", return_value=("27.0", (), "arm64")), patch("mlx_backend.importlib.metadata.version", side_effect=lambda name: versions[name]):
+            self.assertEqual(default_precision("base"), "float16")
+            with patch.dict(PINNED_REVISIONS, {"base": "different-weights"}):
+                self.assertEqual(default_precision("base"), "float32")
+        with patch.dict("os.environ", {"OPENCUT_MAC_HARDWARE": "unvalidated-mac"}):
+            self.assertEqual(default_precision("base"), "float32")
 
     def test_compacted_vad_restores_gap_and_full_duration(self):
         model = MLXModel.__new__(MLXModel)

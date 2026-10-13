@@ -11,6 +11,7 @@ The model cache (/root/.cache) contains only downloaded weights.
 
 import io
 import logging
+import importlib.util
 import os
 from typing import Optional
 
@@ -154,7 +155,7 @@ async def health() -> dict:
             "loaded": loaded,
             "name": MODEL_NAME,
             "pretrained": MODEL_PRETRAINED,
-            "installed": True,
+            "installed": importlib.util.find_spec("open_clip") is not None,
             "error": _load_error,
         },
         "device": _device or _pick_device(),

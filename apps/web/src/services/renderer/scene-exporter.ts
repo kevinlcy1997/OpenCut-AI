@@ -176,94 +176,100 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			target: new BufferTarget(),
 		});
 
-		const codec = this.format === "webm" ? "vp9" : "avc";
-		const videoSource = new CanvasSource(this.renderer.canvas, {
-			codec,
-			bitrate: qualityMap[this.quality],
-			latencyMode: "quality",
-			hardwareAcceleration: await hardwarePreference(
+		try {
+			const codec = this.format === "webm" ? "vp9" : "avc";
+			const videoSource = new CanvasSource(this.renderer.canvas, {
 				codec,
-				this.renderer.width,
-				this.renderer.height,
-				qualityMap[this.quality],
-			),
-		});
+				bitrate: qualityMap[this.quality],
+				latencyMode: "quality",
+				hardwareAcceleration: await hardwarePreference(
+					codec,
+					this.renderer.width,
+					this.renderer.height,
+					qualityMap[this.quality],
+				),
+			});
 
-		output.addVideoTrack(videoSource, { frameRate: fps });
+			output.addVideoTrack(videoSource, { frameRate: fps });
 
-		let audioSource: Awaited<ReturnType<typeof prepareAudio>> | null = null;
-		if (this.shouldIncludeAudio && this.audioBuffer) {
-			let audioCodec: "aac" | "opus" = this.format === "webm" ? "opus" : "aac";
+			let audioSource: Awaited<ReturnType<typeof prepareAudio>> | null = null;
+			if (this.shouldIncludeAudio && this.audioBuffer) {
+				let audioCodec: "aac" | "opus" =
+					this.format === "webm" ? "opus" : "aac";
 
-			if (audioCodec === "aac" && typeof AudioEncoder !== "undefined") {
-				const { supported } = await AudioEncoder.isConfigSupported({
-					codec: "mp4a.40.2",
-					sampleRate: this.audioBuffer.sampleRate,
-					numberOfChannels: this.audioBuffer.numberOfChannels,
-					bitrate: 192000,
-				});
-				if (!supported) audioCodec = "opus";
+				if (audioCodec === "aac" && typeof AudioEncoder !== "undefined") {
+					const { supported } = await AudioEncoder.isConfigSupported({
+						codec: "mp4a.40.2",
+						sampleRate: this.audioBuffer.sampleRate,
+						numberOfChannels: this.audioBuffer.numberOfChannels,
+						bitrate: 192000,
+					});
+					if (!supported) audioCodec = "opus";
+				}
+
+				audioSource = await prepareAudio(
+					this.audioBuffer,
+					audioCodec,
+					qualityMap[this.quality],
+				);
+				output.addAudioTrack(audioSource.source);
 			}
 
-			audioSource = await prepareAudio(
-				this.audioBuffer,
-				audioCodec,
-				qualityMap[this.quality],
-			);
-			output.addAudioTrack(audioSource.source);
-		}
+			await output.start();
 
-		await output.start();
+			if (audioSource && this.audioBuffer) {
+				await audioSource.add();
+			}
 
-		if (audioSource && this.audioBuffer) {
-			await audioSource.add();
-		}
+			let renderMs = 0;
+			let encodeSubmissionMs = 0;
+			for (let i = 0; i < frameCount; i++) {
+				if (this.isCancelled) {
+					await output.cancel();
+					this.emit("cancelled");
+					return null;
+				}
 
-		let renderMs = 0;
-		let encodeSubmissionMs = 0;
-		for (let i = 0; i < frameCount; i++) {
+				const time = i / fps;
+				const renderStart = performance.now();
+				await this.renderer.render({ node: rootNode, time });
+				renderMs += performance.now() - renderStart;
+				const encodeStart = performance.now();
+				await videoSource.add(time, 1 / fps);
+				encodeSubmissionMs += performance.now() - encodeStart;
+
+				this.emit("progress", i / frameCount);
+			}
+
 			if (this.isCancelled) {
 				await output.cancel();
 				this.emit("cancelled");
 				return null;
 			}
 
-			const time = i / fps;
-			const renderStart = performance.now();
-			await this.renderer.render({ node: rootNode, time });
-			renderMs += performance.now() - renderStart;
-			const encodeStart = performance.now();
-			await videoSource.add(time, 1 / fps);
-			encodeSubmissionMs += performance.now() - encodeStart;
+			videoSource.close();
+			const finalizeStart = performance.now();
+			await output.finalize();
+			this.emit("metrics", {
+				frames: frameCount,
+				renderMs,
+				encodeSubmissionMs,
+				finalizeMs: performance.now() - finalizeStart,
+				...this.renderer.metrics,
+			});
+			this.emit("progress", 1);
 
-			this.emit("progress", i / frameCount);
+			const buffer = output.target.buffer;
+			if (!buffer) {
+				this.emit("error", new Error("Failed to export video"));
+				return null;
+			}
+
+			this.emit("complete", buffer);
+			return buffer;
+		} catch (error) {
+			await output.cancel().catch(() => {});
+			throw error;
 		}
-
-		if (this.isCancelled) {
-			await output.cancel();
-			this.emit("cancelled");
-			return null;
-		}
-
-		videoSource.close();
-		const finalizeStart = performance.now();
-		await output.finalize();
-		this.emit("metrics", {
-			frames: frameCount,
-			renderMs,
-			encodeSubmissionMs,
-			finalizeMs: performance.now() - finalizeStart,
-			...this.renderer.metrics,
-		});
-		this.emit("progress", 1);
-
-		const buffer = output.target.buffer;
-		if (!buffer) {
-			this.emit("error", new Error("Failed to export video"));
-			return null;
-		}
-
-		this.emit("complete", buffer);
-		return buffer;
 	}
 }

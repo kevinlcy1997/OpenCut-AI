@@ -1,0 +1,46 @@
+{
+  "device": "mps",
+  "precision": "float16",
+  "slicing": "off",
+  "model": "segmind/tiny-sd",
+  "prompt": "A ceramic teapot on a wooden table beside a window, soft daylight, detailed product photograph",
+  "seed": 42,
+  "width": 512,
+  "height": 512,
+  "steps": 20,
+  "load_seconds": 5.678798708999238,
+  "runs": [
+    {
+      "kind": "cold",
+      "seconds": 22.016496583000844,
+      "image": "gen_ebd29321.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 21.298793583999213,
+      "image": "gen_8ca7cca5.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 21.030509792000885,
+      "image": "gen_c6b60082.png"
+    },
+    {
+      "kind": "warm",
+      "seconds": 20.553888583001026,
+      "image": "gen_2914a2f4.png"
+    }
+  ],
+  "warm_median_seconds": 21.030509792000885,
+  "peak_rss_mb": 1088.6875,
+  "swap_growth_mb": -286.125,
+  "versions": {
+    "torch": "2.11.0",
+    "diffusers": "0.41.0",
+    "transformers": "5.19.0"
+  },
+  "quality_method": "Visual validity check only; model-specific quality and 2x target remain blockers",
+  "quality_failure": "Non-finite latents and black output",
+  "visual_validity_passed": false,
+  "formal_quality_gate_passed": false
+}

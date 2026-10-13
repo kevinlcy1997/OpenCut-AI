@@ -29,11 +29,16 @@ async function encode(
 		target: new BufferTarget(),
 	});
 	output.addAudioTrack(source);
-	await output.start();
-	await source.add(audio);
-	source.close();
-	await output.finalize();
-	return packets;
+	try {
+		await output.start();
+		await source.add(audio);
+		source.close();
+		await output.finalize();
+		return packets;
+	} catch (error) {
+		await output.cancel().catch(() => {});
+		throw error;
+	}
 }
 
 async function calibrate(

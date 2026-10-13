@@ -1,0 +1,16 @@
+{
+  "fixture": "playback-31m",
+  "browser_version": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "runs": [],
+  "metrics": {
+    "elapsed_seconds": 1860.0046000000016,
+    "frames": 48293,
+    "dropped_intervals": 13,
+    "mean_render_ms": 0.5436108753179555,
+    "p95_render_ms": 0.9000000059604645,
+    "cancelled": false,
+    "decodeMs": 12236.100002065301,
+    "copySubmissionMs": 851.8000001236796,
+    "effectsSubmissionMs": 9408.29999948293
+  }
+}

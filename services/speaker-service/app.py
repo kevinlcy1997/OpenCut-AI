@@ -7,6 +7,7 @@ Accepts audio/video files and returns speaker segments and/or emotion annotation
 """
 
 import logging
+import importlib.util
 import os
 import uuid
 import subprocess
@@ -169,6 +170,13 @@ def _fallback_diarization(audio_path: str, num_speakers: Optional[int] = None) -
     return segments
 
 
+def _pyannote_installed():
+    try:
+        return importlib.util.find_spec("pyannote.audio") is not None
+    except ModuleNotFoundError:
+        return False
+
+
 @app.get("/health")
 async def health():
     pipeline = _pipeline
@@ -178,7 +186,10 @@ async def health():
         "model": {
             "loaded": pipeline is not None,
             "name": "pyannote/speaker-diarization-3.1" if pipeline else "fallback (silence-based)",
-            "installed": pipeline is not None,
+            "installed": _pyannote_installed(),
+            "credentials_configured": bool(os.getenv("HF_TOKEN")),
+            "device": "cuda" if pipeline is not None and str(pipeline.device).startswith("cuda") else "cpu",
+            "backend": "pyannote" if pipeline is not None else "silence-fallback",
         },
         "version": "0.1.0",
     }

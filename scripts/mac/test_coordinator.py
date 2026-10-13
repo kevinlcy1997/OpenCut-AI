@@ -57,6 +57,15 @@ class LeaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(lease.acquired)
         self.assertEqual(lease.status()["queued"], 0)
 
+    async def test_rejection_after_unload_clears_loaded_estimate(self):
+        first = Lease(self.directory.name, "whisper-service", 1024)
+        await first.acquire(); first.release()
+        second = Lease(self.directory.name, "image-service", 16000)
+        second.unload = AsyncMock()
+        with self.assertRaises(MemoryError): await second.acquire()
+        self.assertIsNone(second.status().get("service"))
+        self.assertEqual(second.status().get("estimated_mb"), 0)
+
     async def test_failed_unload_blocks_switch(self):
         first = Lease(self.directory.name, "whisper-service", 1024)
         await first.acquire(); first.release()

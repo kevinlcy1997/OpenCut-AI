@@ -74,6 +74,8 @@ class Lease:
     def status(self):
         path = self.state / "lease.json"
         value = json.loads(path.read_text()) if path.exists() else {}
+        value.setdefault("busy", False)
+        value.setdefault("estimated_mb", 0)
         value["queued"] = max(0, len(list((self.state / "queue").glob("*.json"))) - int(bool(value.get("busy"))))
         value["queue_entries"] = []
         for ticket in sorted((self.state / "queue").glob("*.json")):
@@ -150,6 +152,8 @@ class Lease:
             switching_model = self.requested_model and previous.get("model") and self.requested_model != previous["model"]
             if previous.get("service") and (previous["service"] != self.service or switching_model):
                 await self.unload(previous["service"])
+                self.write({"busy": False, "updated": time.time()})
+                previous = {}
             memory = psutil.virtual_memory()
             capacity = memory_capacity(memory.total / 1048576, memory.available / 1048576)
             # Estimates include this worker's existing runtime/model working set.
