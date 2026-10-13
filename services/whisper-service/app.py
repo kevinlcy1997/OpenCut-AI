@@ -8,7 +8,9 @@ Runs on port 8421.
 import logging
 import os
 import uuid
+import threading
 from pathlib import Path
+from mlx_backend import MLXModel, choose_backend
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+WHISPER_BACKEND = os.getenv("WHISPER_BACKEND", "auto")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -119,6 +122,9 @@ class WhisperService:
     _instance: "WhisperService | None" = None
     _model = None
     _model_size: str = ""
+    backend: str = "faster-whisper"
+    device: str = "cpu"
+    fallback_reason: str | None = None
 
     def __new__(cls) -> "WhisperService":
         if cls._instance is None:
@@ -142,6 +148,20 @@ class WhisperService:
         self.unload_model()
 
         try:
+            self.backend = choose_backend(WHISPER_BACKEND)
+            if self.backend == "mlx":
+                try:
+                    self._model = MLXModel(target_size)
+                    self.device = "metal"
+                    self._model_size = target_size
+                    self.fallback_reason = None
+                    return
+                except (ImportError, RuntimeError) as error:
+                    if WHISPER_BACKEND != "auto":
+                        raise
+                    self.backend = "faster-whisper"
+                    self.fallback_reason = str(error)
+                    logger.warning("MLX unavailable; using faster-whisper: %s", error)
             from faster_whisper import WhisperModel
 
             device = WHISPER_DEVICE if WHISPER_DEVICE != "auto" else "cpu"
@@ -155,6 +175,7 @@ class WhisperService:
                 compute_type=WHISPER_COMPUTE_TYPE,
             )
             self._model_size = target_size
+            self.device = device
             logger.info("Whisper model '%s' loaded successfully.", target_size)
         except Exception:
             logger.exception("Failed to load whisper model '%s'", target_size)
@@ -163,6 +184,8 @@ class WhisperService:
     def unload_model(self) -> None:
         if self._model is not None:
             logger.info("Unloading whisper model '%s'...", self._model_size)
+            if self.backend == "mlx":
+                self._model.unload()
             del self._model
             self._model = None
             self._model_size = ""
@@ -236,6 +259,19 @@ class WhisperService:
 
 
 whisper_service = WhisperService()
+_execution_lock = threading.RLock()
+
+
+def _serialized(method):
+    def execute(*args, **kwargs):
+        with _execution_lock:
+            return method(*args, **kwargs)
+    return execute
+
+
+# Also protects direct requests outside the native supervisor.
+for _method in ("load_model", "unload_model", "transcribe"):
+    setattr(whisper_service, _method, _serialized(getattr(whisper_service, _method)))
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -269,8 +305,11 @@ async def health():
         "model": {
             "loaded": whisper_service.is_loaded,
             "model_size": whisper_service.model_size or WHISPER_MODEL_SIZE,
-            "device": WHISPER_DEVICE,
-            "compute_type": WHISPER_COMPUTE_TYPE,
+            "device": whisper_service.device,
+            "backend": whisper_service.backend,
+            "requested_backend": WHISPER_BACKEND,
+            "fallback_reason": whisper_service.fallback_reason,
+            "compute_type": getattr(whisper_service._model, "precision", "float32") if whisper_service.backend == "mlx" else WHISPER_COMPUTE_TYPE,
         },
     }
 
@@ -285,7 +324,7 @@ async def list_models():
             **m,
             "active": m["name"] == active,
         })
-    return {"models": models, "active_model": active, "device": WHISPER_DEVICE}
+    return {"models": models, "active_model": active, "device": whisper_service.device, "backend": whisper_service.backend}
 
 
 @app.post("/test")
@@ -377,7 +416,8 @@ async def transcribe(
                 capture_output=True,
             )
 
-        result = whisper_service.transcribe(audio_path, language=language)
+        import asyncio
+        result = await asyncio.to_thread(whisper_service.transcribe, audio_path, language)
         return result
 
     except HTTPException:
@@ -401,7 +441,8 @@ async def transcribe(
 async def load_model(model_size: str | None = None):
     """Load a whisper model by size. Downloads on first use."""
     try:
-        whisper_service.load_model(model_size)
+        import asyncio
+        await asyncio.to_thread(whisper_service.load_model, model_size)
         return {
             "status": "success",
             "model_size": whisper_service.model_size,
@@ -415,5 +456,25 @@ async def load_model(model_size: str | None = None):
 @app.post("/unload")
 async def unload_model():
     """Unload the whisper model and free memory."""
-    whisper_service.unload_model()
+    import asyncio
+    await asyncio.to_thread(whisper_service.unload_model)
     return {"status": "success", "message": "Whisper model unloaded."}
+
+
+@app.post("/backend")
+async def set_backend(backend: str):
+    global WHISPER_BACKEND
+    try:
+        selected = choose_backend(backend)
+    except (ValueError, RuntimeError) as error:
+        raise HTTPException(422, str(error))
+    import asyncio
+    def update():
+        global WHISPER_BACKEND
+        with _execution_lock:
+            whisper_service.unload_model()
+            WHISPER_BACKEND = backend
+            whisper_service.backend = selected
+            whisper_service.device = "metal" if selected == "mlx" else WHISPER_DEVICE
+    await asyncio.to_thread(update)
+    return {"backend": selected, "requested_backend": backend}
