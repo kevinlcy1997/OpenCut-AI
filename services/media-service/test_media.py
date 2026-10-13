@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -38,6 +40,9 @@ class MediaTests(unittest.TestCase):
         args = media.command(request, Path("out.mp4"))
         self.assertIn("h264_videotoolbox", args)
         self.assertNotIn("-preset", args)
+        self.assertIn("-protocol_whitelist", args)
+        self.assertIn("file,pipe", args)
+        self.assertNotIn("http", media.INPUT_FORMATS)
         self.assertIn("1:a:0", args)
         self.assertIn("-allow_sw", args)
         self.assertIn("trim=start=2.0:duration=3.0", args[args.index("-filter_complex") + 1])
@@ -48,6 +53,11 @@ class MediaTests(unittest.TestCase):
         media.assets["video"] = {"path": Path("source")}
         with self.assertRaises(ValueError):
             media.command(media.JobRequest(clips=[media.Clip(asset_id="video", duration=1)], width=1919), Path("out"))
+
+    def test_automatic_profile_rejects_unvalidated_color_depth(self):
+        media.assets["video"] = {"path": Path("source"), "metadata": {"codec": "h264", "width": 3840, "height": 2160, "fps": 30, "pixel_format": "yuv420p10le", "color_primaries": "bt2020"}}
+        with self.assertRaisesRegex(ValueError, "color/bit-depth"):
+            media.command(media.JobRequest(clips=[media.Clip(asset_id="video", duration=1)], validated_profile="4k-sdr-30fps"), Path("out"))
 
     def test_unsupported_timeline_fields_are_rejected(self):
         with self.assertRaises(ValueError):
@@ -73,6 +83,16 @@ class JobLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.patch.stop(); self.temp.cleanup()
+
+    async def test_gate_requires_matching_hardware_and_implementation(self):
+        state = Path(self.temp.name)
+        gate = {"proxy": {"parity_passed": True, "speedup": 1.3, "hardware_model": "Mac16,1", "ffmpeg_version": "ffmpeg-test", "macos_major": "27", "implementation_sha256": hashlib.sha256(Path(media.__file__).read_bytes()).hexdigest(), "profile": {"source": "4k-sdr-30fps", "output_width": 1280, "output_height": 720}}}
+        (state / "media-gates.json").write_text(json.dumps(gate))
+        with patch("app.platform.mac_ver", return_value=("27.0", (), "arm64")), patch.multiple(media, STATE=state, _hardware_available=True, _ffmpeg_version="ffmpeg-test"), patch.dict("os.environ", {"OPENCUT_MAC_HARDWARE": "Mac16,1"}):
+            self.assertTrue((await media.capabilities())["automatic"]["proxy"])
+            gate["proxy"]["implementation_sha256"] = "outdated"
+            (state / "media-gates.json").write_text(json.dumps(gate))
+            self.assertFalse((await media.capabilities())["automatic"]["proxy"])
 
     async def test_worker_failure_does_not_leave_output(self):
         process = SimpleNamespace(returncode=1, stdout=SimpleNamespace(readline=AsyncMock(return_value=b"")), stderr=SimpleNamespace(read=AsyncMock(side_effect=[b"hardware unavailable", b""])), wait=AsyncMock())

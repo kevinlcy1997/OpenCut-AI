@@ -1,0 +1,53 @@
+{
+  "backend": "faster-whisper",
+  "device": "cpu",
+  "model": "base",
+  "platform": "macOS-27.0-arm64-arm-64bit",
+  "load_seconds": 6.2026903749992925,
+  "runs": [
+    {
+      "kind": "cold",
+      "seconds": 17.48652308400051,
+      "quality": {
+        "wer": 0.34889148191365227,
+        "median_boundary_error_ms": 50.00000000001137,
+        "matched_boundary_count": 1138
+      }
+    },
+    {
+      "kind": "warm",
+      "seconds": 16.62377650000053,
+      "quality": {
+        "wer": 0.34889148191365227,
+        "median_boundary_error_ms": 50.00000000001137,
+        "matched_boundary_count": 1138
+      }
+    },
+    {
+      "kind": "warm",
+      "seconds": 18.330143166000198,
+      "quality": {
+        "wer": 0.34889148191365227,
+        "median_boundary_error_ms": 50.00000000001137,
+        "matched_boundary_count": 1138
+      }
+    },
+    {
+      "kind": "warm",
+      "seconds": 17.13896591699995,
+      "quality": {
+        "wer": 0.34889148191365227,
+        "median_boundary_error_ms": 50.00000000001137,
+        "matched_boundary_count": 1138
+      }
+    }
+  ],
+  "warm_median_seconds": 17.13896591699995,
+  "peak_rss_mb": 738.5,
+  "swap_growth_mb": 0.0,
+  "versions": {
+    "faster-whisper": "1.0.3",
+    "mlx-whisper": "0.4.3"
+  },
+  "model_revision": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66"
+}

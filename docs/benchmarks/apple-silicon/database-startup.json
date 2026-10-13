@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "auth_get_session_http_status": 200,
+  "native_status_http_status": 200,
+  "fresh_public_table_count": 15,
+  "repeat_start_succeeded": true,
+  "automatic_schema_push_over_existing_data": false
+}

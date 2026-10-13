@@ -1,0 +1,26 @@
+{
+  "whisper": [
+    {
+      "hardware_model": "Mac16,1",
+      "model": "base",
+      "mlx_whisper_version": "0.4.3",
+      "mlx_version": "0.29.3",
+      "precision": "float16",
+      "quality_passed": true,
+      "speedup": 2.7146,
+      "reference_fixture_sha256": "6c579a1d834e86e4272645181dbf3aca2564c0805ada6364f3aea20163c00a3b",
+      "wer": 0.34772462077012833,
+      "cpu_wer": 0.34889148191365227,
+      "median_boundary_error_ms": 54.0,
+      "measured_date": "2026-10-13",
+      "model_revision": "1e3e249fb8d01c655324bd6841b1deadffd6d04c",
+      "macos_major": 27
+    }
+  ],
+  "image": {
+    "mps_float16_validated": false,
+    "reason": "segmind/tiny-sd produced non-finite latents and black output on M4",
+    "default_precision": "float32",
+    "default_attention_slicing": "on"
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "fixture": "proxy-720p-60s",
+  "browser_version": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "runs": [
+    {
+      "backend": "browser",
+      "kind": "cold",
+      "seconds": 9.22679999999702,
+      "metrics": {},
+      "asset_id": "2de6684140f8461f93b7ded32c0d22fd",
+      "native_eligible": true,
+      "output": "2de6684140f8461f93b7ded32c0d22fd.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 10.180799999997019,
+      "metrics": {},
+      "asset_id": "4ee46e1ee73446d8b4c5ac6337255f03",
+      "native_eligible": true,
+      "output": "4ee46e1ee73446d8b4c5ac6337255f03.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 9.80289999999851,
+      "metrics": {},
+      "asset_id": "b5937497c0c549159bdfa574bbaab114",
+      "native_eligible": true,
+      "output": "b5937497c0c549159bdfa574bbaab114.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "browser",
+      "kind": "warm",
+      "seconds": 9.31439999999851,
+      "metrics": {},
+      "asset_id": "5da9fd1ed6664d0785aece3f8da36094",
+      "native_eligible": true,
+      "output": "5da9fd1ed6664d0785aece3f8da36094.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "videotoolbox",
+      "kind": "cold",
+      "seconds": 16.828,
+      "asset_id": "b4bc4c2cf9804826b2f2d8136def9fee",
+      "output": "b4bc4c2cf9804826b2f2d8136def9fee.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "videotoolbox",
+      "kind": "warm",
+      "seconds": 16.74829999999702,
+      "asset_id": "d6193d163f754c448807082c37c987f5",
+      "output": "d6193d163f754c448807082c37c987f5.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "videotoolbox",
+      "kind": "warm",
+      "seconds": 17.823,
+      "asset_id": "8b7b5600abe2461db802bf7cc26770cc",
+      "output": "8b7b5600abe2461db802bf7cc26770cc.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    },
+    {
+      "backend": "videotoolbox",
+      "kind": "warm",
+      "seconds": 18.49489999999851,
+      "asset_id": "98854b11f8634daf8565a75f34347f1a",
+      "output": "98854b11f8634daf8565a75f34347f1a.mp4",
+      "metadata": {
+        "duration": 60.0,
+        "video": true,
+        "audio": false,
+        "hdr": false,
+        "fps": 30.0,
+        "variable_rate": false,
+        "rotated": false,
+        "audio_channels": 0
+      }
+    }
+  ],
+  "metrics": null
+}

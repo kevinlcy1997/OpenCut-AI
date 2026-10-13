@@ -1,0 +1,15 @@
+{
+  "browser_version": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "speedup": 0.9431308449113336,
+  "frames_equal": true,
+  "duration_difference_seconds": 0.0,
+  "ssim": 0.992515,
+  "audio_offset_ms": 20.0,
+  "effects_rejected": true,
+  "parity_passed": true,
+  "automatic_export_passed": false,
+  "limitations": [
+    "4K SDR 30fps fixture; proxy route has a separate unopened gate",
+    "Visual comparison is against browser output, not source compression quality"
+  ]
+}

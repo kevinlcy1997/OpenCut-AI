@@ -1,0 +1,48 @@
+{
+  "speech": {
+    "source": "AMI ES2002a",
+    "license": "CC BY 4.0",
+    "source_page": "https://groups.inf.ed.ac.uk/ami/download/",
+    "sources": [
+      {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Headset-0.wav",
+        "sha256": "3bf0627106d6b6f02e5cc8b69f283b70303275c6b354aef3bdc7a50762d3f25e"
+      },
+      {
+        "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Headset-1.wav",
+        "sha256": "285ed5b5eaa4f871cc146900d0cf87487ca757aa57a7062def2eb49feaabc23d"
+      }
+    ],
+    "annotations_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d"
+  },
+  "video": {
+    "source": "Big Buck Bunny \u2014 Blender Foundation",
+    "license": "CC BY 3.0",
+    "url": "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_30fps_normal.mp4.zip",
+    "source_page": "https://peach.blender.org/about/",
+    "archive_sha256": "750b255c6d9fee1e2a03a6716d4f358bca56e9115bf3e06a66162fc5272ae151"
+  },
+  "image_prompt": "A ceramic teapot on a wooden table beside a window, soft daylight, detailed product photograph",
+  "fixtures": {
+    "speech-two-speakers-600s.wav": "6c579a1d834e86e4272645181dbf3aca2564c0805ada6364f3aea20163c00a3b",
+    "speech-reference.json": "50dcdb8320459e3d0360b6401d2d2209e0bfab3be7f937183fdf5f0823af7751",
+    "video-1080p-120s.mp4": "8c75b64680b006ce48739a8f07f4c621cf91c8de000dd6a32c84a04dfe62c95e",
+    "video-4k-60s.mp4": "07f7d74159417e078460b1a615e8dbd5edae45ae551f2cf909d3ed92c05e73b7"
+  },
+  "projects": [
+    {
+      "fixture": "video-1080p-120s.mp4",
+      "duration": 120,
+      "fps": 30,
+      "effects": [
+        "grayscale"
+      ]
+    },
+    {
+      "fixture": "video-4k-60s.mp4",
+      "duration": 60,
+      "fps": 30,
+      "effects": []
+    }
+  ]
+}

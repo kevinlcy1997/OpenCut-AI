@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "frames": 60,
+  "duration_seconds": 2.0,
+  "audio_codec": "aac",
+  "audio_channels": 2,
+  "upload_audio_format": "IEEE float32 WAV",
+  "automatic_routes": {
+    "proxy": false,
+    "export": false
+  },
+  "ffmpeg_version": "ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers",
+  "limitations": [
+    "Cuts/trims/scaling and audio API smoke; full audio/visual parity after float32 upload change remains gated"
+  ]
+}

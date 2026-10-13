@@ -8,6 +8,7 @@ export interface NativeSession {
 export interface NativeCapabilities {
 	hardware_available: boolean;
 	automatic: { proxy: boolean; export: boolean };
+	validated_browser?: { proxy?: string; export?: string };
 }
 
 export async function nativeSession(): Promise<NativeSession | null> {

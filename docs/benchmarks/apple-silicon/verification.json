@@ -1,0 +1,9 @@
+{
+  "python_tests": 38,
+  "bun_tests": 107,
+  "typescript": "passed",
+  "diff_check": "passed",
+  "native_database_restart": "passed",
+  "native_float32_audio_cut_smoke": "passed",
+  "full_performance_acceptance": "blocked; see benchmark report"
+}

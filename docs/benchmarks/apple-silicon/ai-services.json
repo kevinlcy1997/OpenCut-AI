@@ -1,0 +1,121 @@
+{
+  "clip": {
+    "status": "passed",
+    "http_status": 200,
+    "seconds": 23.5206723339943,
+    "result": {
+      "model": "ViT-B-32",
+      "dim": 512
+    },
+    "health": {
+      "service": "clip-embeddings",
+      "status": "running",
+      "model": {
+        "loaded": true,
+        "name": "ViT-B-32",
+        "pretrained": "laion2b_s34b_b79k",
+        "installed": true,
+        "error": null
+      },
+      "device": "mps",
+      "version": "0.1.0"
+    }
+  },
+  "translate": {
+    "status": "blocked",
+    "http_status": 507,
+    "seconds": 0.009008957997139078,
+    "result": {
+      "detail": "Model needs an estimated 3072MB; capacity is 1401MB with a 4GB system budget and 1GB free headroom. Select a smaller model or context."
+    },
+    "health": {
+      "status": "ok",
+      "service": "translate",
+      "model": {
+        "loaded": false,
+        "model_name": "facebook/nllb-200-distilled-600M",
+        "device": null,
+        "requested_device": "auto"
+      },
+      "supports": "NLLB-200 (200 languages)"
+    }
+  },
+  "face": {
+    "status": "passed",
+    "http_status": 200,
+    "result": {
+      "frames": [
+        {
+          "timestamp": 0.0,
+          "faces": []
+        },
+        {
+          "timestamp": 1.0,
+          "faces": []
+        }
+      ],
+      "video_width": 3840,
+      "video_height": 2160,
+      "duration": 60.0,
+      "total_faces_detected": 0
+    },
+    "health": {
+      "service": "face-detection",
+      "status": "running",
+      "model": {
+        "loaded": true,
+        "name": "mediapipe-face-detection",
+        "installed": true,
+        "device": "cpu"
+      },
+      "version": "0.1.0"
+    }
+  },
+  "tts": {
+    "status": "blocked",
+    "reason": "XTTS requires user license acceptance; MPS is not enabled",
+    "health": {
+      "status": "ok",
+      "service": "tts",
+      "model": {
+        "loaded": false,
+        "model_name": null,
+        "installed": true,
+        "device": null
+      },
+      "install_command": null,
+      "supported_languages": [
+        "en",
+        "es",
+        "fr",
+        "de",
+        "it",
+        "pt",
+        "pl",
+        "tr",
+        "ru",
+        "nl",
+        "cs",
+        "ar",
+        "zh-cn",
+        "ja",
+        "hu",
+        "ko"
+      ]
+    }
+  },
+  "speaker": {
+    "status": "blocked",
+    "reason": "Gated diarization credentials are not configured; MPS is not enabled",
+    "health": {
+      "service": "speaker-diarization",
+      "status": "running",
+      "model": {
+        "loaded": false,
+        "name": "fallback (silence-based)",
+        "installed": false
+      },
+      "version": "0.1.0"
+    }
+  }
+}
