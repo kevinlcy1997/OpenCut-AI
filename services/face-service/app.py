@@ -136,11 +136,7 @@ def _detect_faces_in_video(
 
 @app.get("/health")
 async def health():
-    try:
-        _get_detector()
-        model_loaded = True
-    except Exception:
-        model_loaded = False
+    model_loaded = _detector is not None
 
     return {
         "service": "face-detection",
@@ -148,7 +144,8 @@ async def health():
         "model": {
             "loaded": model_loaded,
             "name": "mediapipe-face-detection",
-            "installed": model_loaded,
+            "installed": True,
+            "device": "cpu",
         },
         "version": "0.1.0",
     }

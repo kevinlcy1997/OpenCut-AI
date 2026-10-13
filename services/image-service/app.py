@@ -8,6 +8,7 @@ Runs on port 8423.
 
 import asyncio
 import logging
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DIFFUSION_MODEL = os.getenv("DIFFUSION_MODEL", "stabilityai/stable-diffusion-2-1")
 IMAGE_DEVICE = os.getenv("IMAGE_DEVICE", "auto")
+IMAGE_PRECISION = os.getenv("IMAGE_PRECISION", "auto")
+IMAGE_ATTENTION_SLICING = os.getenv("IMAGE_ATTENTION_SLICING", "auto")
 IMAGE_DEFAULT_WIDTH = int(os.getenv("IMAGE_DEFAULT_WIDTH", "512"))
 IMAGE_DEFAULT_HEIGHT = int(os.getenv("IMAGE_DEFAULT_HEIGHT", "512"))
 IMAGE_DEFAULT_STEPS = int(os.getenv("IMAGE_DEFAULT_STEPS", "20"))
@@ -178,12 +181,7 @@ class DiffusionService:
 
     @property
     def is_installed(self) -> bool:
-        try:
-            import torch  # noqa: F401
-            import diffusers  # noqa: F401
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("torch") is not None and importlib.util.find_spec("diffusers") is not None
 
     def load_model(self, model_name: str | None = None) -> dict:
         """Load a diffusion model by name. Returns status dict."""
@@ -208,6 +206,14 @@ class DiffusionService:
             device = select_device(torch, IMAGE_DEVICE)
             has_cuda = device == "cuda"
             dtype = torch.float16 if has_cuda else torch.float32
+            if IMAGE_PRECISION not in {"auto", "float32", "float16"}:
+                raise ValueError("IMAGE_PRECISION must be auto, float32, or float16")
+            if IMAGE_ATTENTION_SLICING not in {"auto", "on", "off"}:
+                raise ValueError("IMAGE_ATTENTION_SLICING must be auto, on, or off")
+            if IMAGE_PRECISION != "auto":
+                dtype = getattr(torch, IMAGE_PRECISION)
+            if device == "mps" and dtype == torch.float16 and os.getenv("OPENCUT_BENCHMARK_UNVALIDATED") != "1":
+                raise ValueError("MPS float16 image quality has not passed validation; use float32")
 
             logger.info("Loading diffusion model '%s' on %s...", target, device)
 
@@ -217,7 +223,7 @@ class DiffusionService:
                 variant="fp16" if has_cuda else None,
             )
             self._pipeline = self._pipeline.to(device)
-            if device == "mps":
+            if IMAGE_ATTENTION_SLICING == "on" or (IMAGE_ATTENTION_SLICING == "auto" and device == "mps"):
                 self._pipeline.enable_attention_slicing()
             self._model_name = target
             self._device = device
@@ -290,11 +296,7 @@ diffusion_service = DiffusionService()
 # ---------------------------------------------------------------------------
 
 def _check_rembg_available() -> bool:
-    try:
-        import rembg  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    return importlib.util.find_spec("rembg") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +333,7 @@ async def health():
                 "model_name": _short_name(diffusion_service.model_name) if diffusion_service.is_loaded else None,
                 "installed": diffusion_installed,
                 "device": diffusion_service.device if diffusion_service.is_loaded else None,
+                "requested_device": IMAGE_DEVICE,
             },
             "rembg": {
                 "available": rembg_available,
@@ -456,13 +459,13 @@ ALLOWED_VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"}
 _bg_jobs: dict[str, dict] = {}
 
 
-def _rembg_one(input_path: str, output_path: str) -> None:
+def _rembg_one(input_path: str, output_path: str, session=None) -> None:
     """Run rembg on a single PNG frame (synchronous — call in a thread)."""
     from rembg import remove
     from PIL import Image
 
     img = Image.open(input_path)
-    out = remove(img)
+    out = remove(img, session=session)
     out.save(output_path, "PNG")
 
 
@@ -472,7 +475,7 @@ def _run_ffmpeg(cmd: list[str]) -> None:
         raise RuntimeError(f"ffmpeg failed: {proc.stderr.decode()[:400]}")
 
 
-async def _remove_bg_video_pipeline(
+def _remove_bg_video_pipeline_sync(
     job_id: str,
     video_path: str,
     fps: float,
@@ -531,13 +534,17 @@ async def _remove_bg_video_pipeline(
 
             frames = sorted(Path(work).glob("f_*.png"))
             job.update({"total_frames": len(frames)})
+            from rembg import new_session
+            session = new_session()
 
             def _process(idx_path: tuple[int, str]) -> None:
                 i, src = idx_path
                 dst = os.path.join(work, f"r_{i:06d}.png")
-                _rembg_one(src, dst)
+                _rembg_one(src, dst, session)
 
             max_workers = max(1, (os.cpu_count() or 2) // 2)
+            if os.getenv("OPENCUT_MAC_STATE"):
+                max_workers = 1
             done = 0
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
                 for _ in pool.map(_process, enumerate(str(p) for p in frames)):
@@ -591,6 +598,37 @@ async def _remove_bg_video_pipeline(
             pass
 
 
+async def _remove_bg_video_pipeline(job_id, video_path, fps, max_duration):
+    import asyncio
+    lease = None
+    try:
+        if os.getenv("OPENCUT_MAC_STATE"):
+            from coordinator import Lease
+            lease = Lease(os.environ["OPENCUT_MAC_STATE"], "image-service", 2048)
+            await lease.acquire()
+            # Matting has a separate working set; release diffusion before starting.
+            await asyncio.to_thread(diffusion_service.unload)
+        worker = asyncio.create_task(asyncio.to_thread(_remove_bg_video_pipeline_sync, job_id, video_path, fps, max_duration))
+        cancelled = False
+        while True:
+            try:
+                await asyncio.shield(worker)
+                break
+            except asyncio.CancelledError:
+                cancelled = True
+                if worker.done():
+                    break
+        if cancelled:
+            raise asyncio.CancelledError()
+    except Exception as error:
+        _bg_jobs[job_id].update(status="failed", error=str(error))
+        if os.path.exists(video_path):
+            os.remove(video_path)
+    finally:
+        if lease:
+            lease.release()
+
+
 @app.post("/remove-bg-video")
 async def remove_bg_video(
     file: UploadFile = File(...),
@@ -613,6 +651,8 @@ async def remove_bg_video(
             detail=f"Unsupported video format '{ext}'. Allowed: {sorted(ALLOWED_VIDEO_EXTS)}",
         )
 
+    if sum(job.get("status") in {"queued", "running"} for job in _bg_jobs.values()) >= 8:
+        raise HTTPException(429, "Background removal queue is full")
     if not _check_rembg_available():
         raise HTTPException(
             status_code=501,
@@ -716,3 +756,16 @@ async def unload_model():
     """Unload the image generation model and free memory."""
     diffusion_service.unload()
     return {"status": "success", "message": "Image model unloaded."}
+
+
+@app.post("/backend")
+async def set_device(device: str):
+    global IMAGE_DEVICE
+    import torch
+    try:
+        selected = select_device(torch, device)
+    except (ValueError, RuntimeError) as error:
+        raise HTTPException(422, str(error))
+    diffusion_service.unload()
+    IMAGE_DEVICE = device
+    return {"device": selected, "requested_device": device}

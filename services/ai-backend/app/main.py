@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.routes import native
 from app.routes import analyze, audio, background, broll, command, dub, engagement, export, factcheck, generate, llm, podcast, sarvam, search, setup, smallest, template, transcribe, transcribe_ws, translate, tts, turboquant, video, youtube
 
 # Configure logging
@@ -78,6 +79,7 @@ app.mount("/generated", StaticFiles(directory=settings.GENERATED_DIR), name="gen
 
 # Register routers
 app.include_router(transcribe.router)
+app.include_router(native.router)
 app.include_router(transcribe_ws.router)
 app.include_router(llm.router)
 app.include_router(command.router)
