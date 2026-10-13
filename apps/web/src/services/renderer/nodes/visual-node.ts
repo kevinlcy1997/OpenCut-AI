@@ -34,6 +34,7 @@ export interface VisualNodeParams {
 export abstract class VisualNode<
 	Params extends VisualNodeParams = VisualNodeParams,
 > extends BaseNode<Params> {
+	private effectCanvas: ReturnType<typeof createOffscreenCanvas> | null = null;
 	protected getSourceLocalTime({ time }: { time: number }): number {
 		const baseRate = this.params.playbackRate ?? 1.0;
 		const elapsed = time - this.params.timeOffset;
@@ -152,15 +153,20 @@ export abstract class VisualNode<
 			this.params.effects?.filter((effect) => effect.enabled) ?? [];
 
 		if (enabledEffects.length === 0) {
+			const copyStart = performance.now();
 			renderer.context.drawImage(source, x, y, scaledWidth, scaledHeight);
+			renderer.metrics.copySubmissionMs += performance.now() - copyStart;
 			renderer.context.restore();
 			return;
 		}
 
-		const elementCanvas = createOffscreenCanvas({
-			width: Math.round(scaledWidth),
-			height: Math.round(scaledHeight),
-		});
+		const width = Math.round(scaledWidth),
+			height = Math.round(scaledHeight);
+		if (!this.effectCanvas)
+			this.effectCanvas = createOffscreenCanvas({ width, height });
+		const elementCanvas = this.effectCanvas;
+		if (elementCanvas.width !== width) elementCanvas.width = width;
+		if (elementCanvas.height !== height) elementCanvas.height = height;
 		const elementCtx = elementCanvas.getContext("2d") as
 			| CanvasRenderingContext2D
 			| OffscreenCanvasRenderingContext2D
@@ -171,7 +177,10 @@ export abstract class VisualNode<
 			return;
 		}
 
+		const initialCopy = performance.now();
+		elementCtx.clearRect(0, 0, width, height);
 		elementCtx.drawImage(source, 0, 0, scaledWidth, scaledHeight);
+		renderer.metrics.copySubmissionMs += performance.now() - initialCopy;
 
 		let currentResult: CanvasImageSource = elementCanvas;
 
@@ -190,15 +199,19 @@ export abstract class VisualNode<
 					height: scaledHeight,
 				}),
 			}));
+			const effectStart = performance.now();
 			currentResult = webglEffectRenderer.applyEffect({
 				source: currentResult,
 				width: Math.round(scaledWidth),
 				height: Math.round(scaledHeight),
 				passes,
 			});
+			renderer.metrics.effectsSubmissionMs += performance.now() - effectStart;
 		}
 
+		const finalCopy = performance.now();
 		renderer.context.drawImage(currentResult, x, y, scaledWidth, scaledHeight);
+		renderer.metrics.copySubmissionMs += performance.now() - finalCopy;
 		renderer.context.restore();
 	}
 }

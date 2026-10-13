@@ -70,9 +70,9 @@ export class RendererManager {
 				timeInSeconds: renderTime,
 				fps,
 			}).replace(/:/g, "-");
-			const safeName = activeProject.metadata.name
-				.replace(/[<>:"/\\|?*]/g, "-")
-				.trim() || "snapshot";
+			const safeName =
+				activeProject.metadata.name.replace(/[<>:"/\\|?*]/g, "-").trim() ||
+				"snapshot";
 			const filename = `${safeName}-${timecode}.png`;
 
 			downloadBlob({ blob, filename });
@@ -138,6 +138,17 @@ export class RendererManager {
 				fps: exportFps,
 				format,
 				watermark: includeWatermark ?? true,
+				encoder: options.encoder ?? "auto",
+				nativeAllowed: !tracks.some(
+					(track) =>
+						("audioEffects" in track && !!track.audioEffects?.length) ||
+						("pan" in track && !!track.pan) ||
+						track.elements.some(
+							(element) =>
+								("crop" in element && !!element.crop) ||
+								("mask" in element && !!element.mask),
+						),
+				),
 				quality,
 				shouldIncludeAudio: !!includeAudio,
 				audioBuffer: audioBuffer || undefined,

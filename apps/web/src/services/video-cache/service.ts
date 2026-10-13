@@ -8,6 +8,7 @@ import {
 import { aiClient } from "@/lib/ai-client";
 
 interface VideoSinkData {
+	input: Input;
 	sink: CanvasSink;
 	iterator: AsyncGenerator<WrappedCanvas, void, unknown> | null;
 	currentFrame: WrappedCanvas | null;
@@ -251,9 +252,10 @@ export class VideoCache {
 		file: File;
 	}): Promise<void> {
 		const effectiveFile = this.transcodedFiles.get(mediaId) ?? file;
+		let input: Input | null = null;
 
 		try {
-			const input = new Input({
+			input = new Input({
 				source: new BlobSource(effectiveFile),
 				formats: ALL_FORMATS,
 			});
@@ -274,6 +276,7 @@ export class VideoCache {
 			});
 
 			this.sinks.set(mediaId, {
+				input,
 				sink,
 				iterator: null,
 				currentFrame: null,
@@ -283,6 +286,7 @@ export class VideoCache {
 				prefetchPromise: null,
 			});
 		} catch (error) {
+			input?.dispose();
 			// Already tried the transcoded stand-in and it still won't decode —
 			// give up for real this time.
 			if (this.transcodedFiles.has(mediaId)) {
@@ -329,8 +333,9 @@ export class VideoCache {
 	clearVideo({ mediaId }: { mediaId: string }): void {
 		const sinkData = this.sinks.get(mediaId);
 		if (sinkData) {
+			sinkData.input.dispose();
 			if (sinkData.iterator) {
-				void sinkData.iterator.return();
+				void sinkData.iterator.return().catch(() => {});
 			}
 
 			this.sinks.delete(mediaId);
