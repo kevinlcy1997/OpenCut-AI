@@ -1,0 +1,5 @@
+-r ../../../services/face-service/requirements.txt
+mediapipe==0.10.21
+
+httpx==0.27.0
+psutil>=5.9.0

@@ -4,6 +4,11 @@
 .tool-versions
 
 node_modules
+.mac-runtime/
+**/.venv/
+**/__pycache__/
+services/*/uploads/
+services/*/generated/
 .cursorignore
 .turbo
 
