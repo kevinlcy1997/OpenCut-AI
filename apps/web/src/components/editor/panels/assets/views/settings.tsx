@@ -32,6 +32,7 @@ import type { TurboQuantStatus } from "@/types/ai";
 import { toast } from "sonner";
 import { FactCheckView } from "./factcheck";
 import type { ProxyResolution } from "@/services/storage/types";
+import { NativeRuntimeSettings } from "@/components/editor/native-runtime-settings";
 
 const ORIGINAL_PRESET_VALUE = "original";
 
@@ -78,6 +79,7 @@ export function SettingsView() {
 					</SectionHeader>
 					<SectionContent>
 						<AIOptimizationSection />
+						<NativeRuntimeSettings />
 					</SectionContent>
 				</Section>
 				<Section>

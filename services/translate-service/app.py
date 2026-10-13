@@ -169,6 +169,14 @@ class TranslateService:
             self._tokenizer = None
         self._model_name = ""
 
+        import gc
+        gc.collect()
+        import torch
+        if self.device == "mps" and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif self.device == "cuda" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         if not text.strip():
             return ""
@@ -270,7 +278,8 @@ async def health():
         "model": {
             "loaded": translate_service.is_loaded,
             "model_name": translate_service.model_name or NLLB_MODEL,
-            "device": translate_service.device,
+            "device": translate_service.device if translate_service.is_loaded else None,
+            "requested_device": DEVICE,
         },
         "supports": "NLLB-200 (200 languages)",
     }

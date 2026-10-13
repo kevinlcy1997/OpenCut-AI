@@ -146,13 +146,7 @@ async def health() -> dict:
     """Health check. `model.loaded` reflects whether the lazy model init succeeded."""
     global _load_error
     loaded = _model is not None
-    # Try a one-shot warm load so the very first user request isn't slow.
-    if not loaded and _load_error is None:
-        try:
-            _load_model()
-            loaded = _model is not None
-        except Exception:
-            loaded = False
+    # Health probes must remain lightweight; inference loads on demand.
     return {
         "service": "clip-embeddings",
         "status": "running",
@@ -270,3 +264,20 @@ async def zero_shot_classify(
         reverse=True,
     )
     return {"tags": ranked, "model": MODEL_NAME}
+
+
+@app.post("/unload")
+async def unload_model():
+    global _model, _preprocess, _tokenizer, _device, _load_error
+    _model = _preprocess = _tokenizer = None
+    previous = _device
+    _device = None
+    _load_error = None
+    import gc
+    gc.collect()
+    import torch
+    if previous == "mps":
+        torch.mps.empty_cache()
+    elif previous == "cuda":
+        torch.cuda.empty_cache()
+    return {"status": "unloaded"}

@@ -171,7 +171,7 @@ def _fallback_diarization(audio_path: str, num_speakers: Optional[int] = None) -
 
 @app.get("/health")
 async def health():
-    pipeline = _get_pipeline()
+    pipeline = _pipeline
     return {
         "service": "speaker-diarization",
         "status": "running",
@@ -182,6 +182,21 @@ async def health():
         },
         "version": "0.1.0",
     }
+
+
+@app.post("/unload")
+async def unload_model():
+    global _pipeline, _pipeline_loaded
+    _pipeline = None
+    _pipeline_loaded = False
+    import gc
+    gc.collect()
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+    return {"status": "unloaded"}
 
 
 @app.post("/diarize")
