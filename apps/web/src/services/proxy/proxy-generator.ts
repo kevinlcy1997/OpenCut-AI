@@ -11,12 +11,22 @@ import {
 } from "mediabunny";
 import type { ProxyResolution } from "@/services/storage/types";
 import { PROXY_PRESETS } from "@/services/storage/types";
+import {
+	nativeSession,
+	nativeRequest,
+	uploadNative,
+	runNativeJob,
+	releaseNative,
+	type NativeCapabilities,
+} from "../native/client";
+import { hardwarePreference } from "../renderer/encoding";
 
 export interface ProxyGenerateOptions {
 	file: File;
 	resolution: ProxyResolution;
 	onProgress?: (progress: number) => void;
 	signal?: AbortSignal;
+	encoder?: "auto" | "browser";
 }
 
 export interface ProxyGenerateResult {
@@ -54,16 +64,67 @@ export async function generateProxy(
 			preset.maxHeight / origHeight,
 			1,
 		);
-		const proxyWidth = Math.round(origWidth * scale);
-		const proxyHeight = Math.round(origHeight * scale);
+		const proxyWidth = Math.max(2, Math.round((origWidth * scale) / 2) * 2);
+		const proxyHeight = Math.max(2, Math.round((origHeight * scale) / 2) * 2);
 
 		const stats = await videoTrack.computePacketStats();
 		const fps = Math.min(stats.averagePacketRate ?? 30, 30);
 		const frameCount = Math.ceil(duration * fps);
+		// Hardware route is enabled only after recorded parity and speed gates.
+		let session = null;
+		try {
+			if (options.encoder !== "browser") session = await nativeSession();
+		} catch {
+			/* browser fallback */
+		}
+		if (
+			session &&
+			Math.abs(duration * fps - Math.round(duration * fps)) < 0.0001
+		) {
+			const ids: string[] = [];
+			try {
+				const capabilities: NativeCapabilities = await (
+					await nativeRequest(session, "/capabilities", {
+						signal: options.signal,
+					})
+				).json();
+				if (capabilities.automatic.proxy) {
+					const id = await uploadNative(session, file, options.signal);
+					ids.push(id);
+					const blob = await runNativeJob(
+						session,
+						{
+							kind: "proxy",
+							clips: [{ asset_id: id, start: 0, duration }],
+							width: Math.max(2, Math.round(proxyWidth / 2) * 2),
+							height: Math.max(2, Math.round(proxyHeight / 2) * 2),
+							fps,
+							bitrate: 2_000_000,
+						},
+						options.onProgress,
+						options.signal,
+					);
+					return {
+						file: new File([blob], `${file.name}.proxy.mp4`, {
+							type: "video/mp4",
+						}),
+						width: Math.max(2, Math.round(proxyWidth / 2) * 2),
+						height: Math.max(2, Math.round(proxyHeight / 2) * 2),
+					};
+				}
+			} catch (error) {
+				if (options.signal?.aborted) throw error;
+				console.warn("Native proxy unavailable; using browser encoder", error);
+			} finally {
+				await releaseNative(session, ids);
+			}
+		}
 
 		const canvas = document.createElement("canvas");
 		canvas.width = proxyWidth;
 		canvas.height = proxyHeight;
+		const ctx = canvas.getContext("2d");
+		if (!ctx) throw new Error("Proxy canvas context unavailable");
 
 		const sink = new CanvasSink(videoTrack, {
 			poolSize: 2,
@@ -78,6 +139,13 @@ export async function generateProxy(
 		const videoSource = new CanvasSource(canvas, {
 			codec: "avc",
 			bitrate: QUALITY_LOW,
+			latencyMode: "quality",
+			hardwareAcceleration: await hardwarePreference(
+				"avc",
+				proxyWidth,
+				proxyHeight,
+				QUALITY_LOW,
+			),
 		});
 
 		output.addVideoTrack(videoSource, { frameRate: fps });
@@ -93,7 +161,6 @@ export async function generateProxy(
 					throw new Error("Proxy generation cancelled");
 				}
 
-				const ctx = canvas.getContext("2d");
 				if (ctx) {
 					ctx.clearRect(0, 0, proxyWidth, proxyHeight);
 					ctx.drawImage(frame.canvas, 0, 0, proxyWidth, proxyHeight);

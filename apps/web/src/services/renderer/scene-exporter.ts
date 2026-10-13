@@ -6,7 +6,6 @@ import {
 	WebMOutputFormat,
 	BufferTarget,
 	CanvasSource,
-	AudioBufferSource,
 	QUALITY_LOW,
 	QUALITY_MEDIUM,
 	QUALITY_HIGH,
@@ -15,6 +14,10 @@ import {
 import type { RootNode } from "./nodes/root-node";
 import type { ExportFormat, ExportQuality } from "@/types/export";
 import { CanvasRenderer } from "./canvas-renderer";
+import { nativeExport } from "../native/export";
+import { hardwarePreference } from "./encoding";
+import { prepareAudio } from "./audio-encoding";
+import { VideoCache } from "../video-cache/service";
 
 type ExportParams = {
 	width: number;
@@ -25,6 +28,8 @@ type ExportParams = {
 	shouldIncludeAudio?: boolean;
 	audioBuffer?: AudioBuffer;
 	watermark?: boolean;
+	encoder?: "auto" | "browser";
+	nativeAllowed?: boolean;
 };
 
 const qualityMap = {
@@ -39,6 +44,17 @@ export type SceneExporterEvents = {
 	complete: [buffer: ArrayBuffer];
 	error: [error: Error];
 	cancelled: [];
+	metrics: [
+		metrics: {
+			frames: number;
+			renderMs: number;
+			encodeSubmissionMs: number;
+			finalizeMs: number;
+			decodeMs: number;
+			copySubmissionMs: number;
+			effectsSubmissionMs: number;
+		},
+	];
 };
 
 export class SceneExporter extends EventEmitter<SceneExporterEvents> {
@@ -47,6 +63,10 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 	private quality: ExportQuality;
 	private shouldIncludeAudio: boolean;
 	private audioBuffer?: AudioBuffer;
+	private encoder: "auto" | "browser";
+	private watermark: boolean;
+	private nativeAllowed: boolean;
+	private nativeAbort = new AbortController();
 
 	private isCancelled = false;
 
@@ -59,6 +79,8 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 		shouldIncludeAudio,
 		audioBuffer,
 		watermark,
+		encoder = "auto",
+		nativeAllowed = true,
 	}: ExportParams) {
 		super();
 		this.renderer = new CanvasRenderer({
@@ -66,16 +88,21 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			height,
 			fps,
 			watermark: watermark ?? false,
+			videoCache: new VideoCache(),
 		});
 
 		this.format = format;
 		this.quality = quality;
 		this.shouldIncludeAudio = shouldIncludeAudio ?? false;
 		this.audioBuffer = audioBuffer;
+		this.encoder = encoder;
+		this.watermark = watermark ?? false;
+		this.nativeAllowed = nativeAllowed;
 	}
 
 	cancel(): void {
 		this.isCancelled = true;
+		this.nativeAbort.abort();
 	}
 
 	async export({
@@ -83,8 +110,63 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 	}: {
 		rootNode: RootNode;
 	}): Promise<ArrayBuffer | null> {
+		this.renderer.setSize({
+			width: this.renderer.width,
+			height: this.renderer.height,
+		});
+		Object.assign(this.renderer.metrics, {
+			decodeMs: 0,
+			copySubmissionMs: 0,
+			effectsSubmissionMs: 0,
+		});
+		try {
+			return await this.performExport({ rootNode });
+		} finally {
+			this.renderer.videoCache.clearAll();
+			this.renderer.canvas.width = 1;
+			this.renderer.canvas.height = 1;
+		}
+	}
+
+	private async performExport({
+		rootNode,
+	}: {
+		rootNode: RootNode;
+	}): Promise<ArrayBuffer | null> {
 		const { fps } = this.renderer;
 		const frameCount = Math.ceil(rootNode.duration * fps);
+		if (
+			this.encoder === "auto" &&
+			this.format === "mp4" &&
+			!this.watermark &&
+			this.nativeAllowed
+		) {
+			try {
+				const native = await nativeExport({
+					root: rootNode,
+					width: this.renderer.width,
+					height: this.renderer.height,
+					fps,
+					quality: this.quality,
+					audio: this.shouldIncludeAudio ? this.audioBuffer : undefined,
+					signal: this.nativeAbort.signal,
+					onProgress: (progress) => this.emit("progress", progress),
+				});
+				if (native) {
+					this.emit("complete", native);
+					return native;
+				}
+			} catch (error) {
+				if (this.isCancelled) {
+					this.emit("cancelled");
+					return null;
+				}
+				console.warn(
+					"Native export unavailable; using browser renderer",
+					error,
+				);
+			}
+		}
 
 		const outputFormat =
 			this.format === "webm" ? new WebMOutputFormat() : new Mp4OutputFormat();
@@ -94,17 +176,24 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			target: new BufferTarget(),
 		});
 
+		const codec = this.format === "webm" ? "vp9" : "avc";
 		const videoSource = new CanvasSource(this.renderer.canvas, {
-			codec: this.format === "webm" ? "vp9" : "avc",
+			codec,
 			bitrate: qualityMap[this.quality],
+			latencyMode: "quality",
+			hardwareAcceleration: await hardwarePreference(
+				codec,
+				this.renderer.width,
+				this.renderer.height,
+				qualityMap[this.quality],
+			),
 		});
 
 		output.addVideoTrack(videoSource, { frameRate: fps });
 
-		let audioSource: AudioBufferSource | null = null;
+		let audioSource: Awaited<ReturnType<typeof prepareAudio>> | null = null;
 		if (this.shouldIncludeAudio && this.audioBuffer) {
-			let audioCodec: "aac" | "opus" =
-				this.format === "webm" ? "opus" : "aac";
+			let audioCodec: "aac" | "opus" = this.format === "webm" ? "opus" : "aac";
 
 			if (audioCodec === "aac" && typeof AudioEncoder !== "undefined") {
 				const { supported } = await AudioEncoder.isConfigSupported({
@@ -116,20 +205,22 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 				if (!supported) audioCodec = "opus";
 			}
 
-			audioSource = new AudioBufferSource({
-				codec: audioCodec,
-				bitrate: qualityMap[this.quality],
-			});
-			output.addAudioTrack(audioSource);
+			audioSource = await prepareAudio(
+				this.audioBuffer,
+				audioCodec,
+				qualityMap[this.quality],
+			);
+			output.addAudioTrack(audioSource.source);
 		}
 
 		await output.start();
 
 		if (audioSource && this.audioBuffer) {
-			await audioSource.add(this.audioBuffer);
-			audioSource.close();
+			await audioSource.add();
 		}
 
+		let renderMs = 0;
+		let encodeSubmissionMs = 0;
 		for (let i = 0; i < frameCount; i++) {
 			if (this.isCancelled) {
 				await output.cancel();
@@ -138,8 +229,12 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			}
 
 			const time = i / fps;
+			const renderStart = performance.now();
 			await this.renderer.render({ node: rootNode, time });
+			renderMs += performance.now() - renderStart;
+			const encodeStart = performance.now();
 			await videoSource.add(time, 1 / fps);
+			encodeSubmissionMs += performance.now() - encodeStart;
 
 			this.emit("progress", i / frameCount);
 		}
@@ -151,7 +246,15 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 		}
 
 		videoSource.close();
+		const finalizeStart = performance.now();
 		await output.finalize();
+		this.emit("metrics", {
+			frames: frameCount,
+			renderMs,
+			encodeSubmissionMs,
+			finalizeMs: performance.now() - finalizeStart,
+			...this.renderer.metrics,
+		});
 		this.emit("progress", 1);
 
 		const buffer = output.target.buffer;

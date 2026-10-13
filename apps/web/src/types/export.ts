@@ -16,6 +16,7 @@ export interface ExportOptions {
 	fps?: number;
 	includeAudio?: boolean;
 	includeWatermark?: boolean;
+	encoder?: "auto" | "browser";
 }
 
 export interface ExportResult {

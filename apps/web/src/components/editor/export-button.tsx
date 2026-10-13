@@ -105,6 +105,7 @@ function ExportPopover({
 		DEFAULT_EXPORT_OPTIONS.includeAudio ?? true,
 	);
 	const [shouldIncludeWatermark, setShouldIncludeWatermark] = useState(true);
+	const [encoder, setEncoder] = useState<"auto" | "browser">("auto");
 
 	const handlePresetSelect = (presetId: string) => {
 		const preset = EXPORT_PRESETS.find((p) => p.id === presetId);
@@ -127,6 +128,7 @@ function ExportPopover({
 			fps: activeProject.settings.fps,
 			includeAudio: shouldIncludeAudio,
 			includeWatermark: shouldIncludeWatermark,
+			encoder,
 			},
 		});
 
@@ -265,9 +267,13 @@ function ExportPopover({
 
 									<Section collapsible defaultOpen={false}>
 										<SectionHeader>
-											<SectionTitle>Audio</SectionTitle>
+											<SectionTitle>Audio and encoding</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
+												<label className="flex items-center gap-2 text-xs">
+													<input type="checkbox" checked={encoder === "browser"} onChange={(event) => setEncoder(event.target.checked ? "browser" : "auto")} />
+													Always use browser export
+												</label>
 											<div className="flex items-center space-x-2">
 												<Checkbox
 													id="include-audio"

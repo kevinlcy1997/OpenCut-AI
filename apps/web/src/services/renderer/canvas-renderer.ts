@@ -1,10 +1,12 @@
 import type { BaseNode } from "./nodes/base-node";
+import { VideoCache, videoCache } from "../video-cache/service";
 
 export type CanvasRendererParams = {
 	width: number;
 	height: number;
 	fps: number;
 	watermark?: boolean;
+	videoCache?: VideoCache;
 };
 
 // Pre-loaded watermark logo (loaded once, reused across frames)
@@ -51,12 +53,25 @@ export class CanvasRenderer {
 	height: number;
 	fps: number;
 	private watermark: boolean;
+	readonly videoCache: VideoCache;
+	readonly metrics = {
+		decodeMs: 0,
+		copySubmissionMs: 0,
+		effectsSubmissionMs: 0,
+	};
 
-	constructor({ width, height, fps, watermark = false }: CanvasRendererParams) {
+	constructor({
+		width,
+		height,
+		fps,
+		watermark = false,
+		videoCache: cache = videoCache,
+	}: CanvasRendererParams) {
 		this.width = width;
 		this.height = height;
 		this.fps = fps;
 		this.watermark = watermark;
+		this.videoCache = cache;
 
 		try {
 			this.canvas = new OffscreenCanvas(width, height);
