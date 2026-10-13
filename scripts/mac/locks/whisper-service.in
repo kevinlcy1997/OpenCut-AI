@@ -1,0 +1,5 @@
+-r ../../../services/whisper-service/requirements.txt
+mlx-whisper==0.4.3 ; platform_system == "Darwin" and platform_machine == "arm64"
+
+httpx==0.27.0
+psutil>=5.9.0

@@ -1,0 +1,4 @@
+-r ../../../services/image-service/requirements.txt
+
+httpx==0.27.0
+psutil>=5.9.0

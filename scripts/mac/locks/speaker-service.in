@@ -1,0 +1,8 @@
+-r ../../../services/speaker-service/requirements.txt
+torch==2.5.1
+torchaudio==2.5.1
+pyannote.audio<4
+numpy<2
+
+httpx==0.27.0
+psutil>=5.9.0

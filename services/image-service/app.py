@@ -15,6 +15,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from device import select_device
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Configuration via environment variables
 # ---------------------------------------------------------------------------
 DIFFUSION_MODEL = os.getenv("DIFFUSION_MODEL", "stabilityai/stable-diffusion-2-1")
+IMAGE_DEVICE = os.getenv("IMAGE_DEVICE", "auto")
 IMAGE_DEFAULT_WIDTH = int(os.getenv("IMAGE_DEFAULT_WIDTH", "512"))
 IMAGE_DEFAULT_HEIGHT = int(os.getenv("IMAGE_DEFAULT_HEIGHT", "512"))
 IMAGE_DEFAULT_STEPS = int(os.getenv("IMAGE_DEFAULT_STEPS", "20"))
@@ -203,9 +205,9 @@ class DiffusionService:
             import torch
             from diffusers import AutoPipelineForText2Image
 
-            has_cuda = torch.cuda.is_available()
+            device = select_device(torch, IMAGE_DEVICE)
+            has_cuda = device == "cuda"
             dtype = torch.float16 if has_cuda else torch.float32
-            device = "cuda" if has_cuda else "cpu"
 
             logger.info("Loading diffusion model '%s' on %s...", target, device)
 
@@ -215,6 +217,8 @@ class DiffusionService:
                 variant="fp16" if has_cuda else None,
             )
             self._pipeline = self._pipeline.to(device)
+            if device == "mps":
+                self._pipeline.enable_attention_slicing()
             self._model_name = target
             self._device = device
 
@@ -226,6 +230,7 @@ class DiffusionService:
 
     def unload(self) -> None:
         if self._pipeline is not None:
+            previous_device = self._device
             del self._pipeline
             self._pipeline = None
             self._model_name = ""
@@ -234,6 +239,8 @@ class DiffusionService:
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                if previous_device == "mps" and torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
             except ImportError:
                 pass
             logger.info("Diffusion pipeline unloaded.")
@@ -255,7 +262,8 @@ class DiffusionService:
 
         import torch
 
-        generator = torch.Generator(device=self._pipeline.device)
+        # Metal does not support torch.Generator; Diffusers accepts CPU noise.
+        generator = torch.Generator(device="cpu" if self._device == "mps" else self._pipeline.device)
         if seed is not None:
             generator = generator.manual_seed(seed)
 
