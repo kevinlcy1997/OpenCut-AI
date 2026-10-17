@@ -83,10 +83,13 @@ export function MediaView() {
 			return;
 		}
 
+		const sessionToken = editor.media.getSessionToken();
+		let processedAssets: Awaited<ReturnType<typeof processMediaAssets>> = [];
+		const imported = new Set<File>();
 		setIsProcessing(true);
 		setProgress(0);
 		try {
-			const processedAssets = await processMediaAssets({
+			processedAssets = await processMediaAssets({
 				files,
 				onProgress: (progress: { progress: number }) =>
 					setProgress(progress.progress),
@@ -95,12 +98,19 @@ export function MediaView() {
 				await editor.media.addMediaAsset({
 					projectId: activeProject.metadata.id,
 					asset,
+					sessionToken,
 				});
+				imported.add(asset.file);
 			}
 		} catch (error) {
-			console.error("Error processing files:", error);
-			toast.error("Failed to process files");
+			if ((error as Error).name !== "AbortError") {
+				console.error("Error processing files:", error);
+				toast.error("Failed to process files");
+			}
 		} finally {
+			for (const asset of processedAssets) if (!imported.has(asset.file)) {
+				for (const url of [asset.url, asset.thumbnailUrl]) if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+			}
 			setIsProcessing(false);
 			setProgress(0);
 		}

@@ -27,6 +27,8 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan)
 if COORDINATED:
     app.add_middleware(NativeGuard)
+    from local_access import LocalAccessGuard
+    app.add_middleware(LocalAccessGuard)
 
 
 @app.get("/health")

@@ -131,11 +131,12 @@ function ProjectDropdown() {
 		try {
 			await editor.project.prepareExit();
 			editor.project.closeProject();
+			router.push("/projects");
 		} catch (error) {
 			console.error("Failed to prepare project exit:", error);
+			toast.error("Project could not be saved. Keep this tab open and retry.");
 		} finally {
-			editor.project.closeProject();
-			router.push("/projects");
+			setIsExiting(false);
 		}
 	};
 

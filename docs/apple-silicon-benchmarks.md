@@ -62,3 +62,10 @@ The ordered draft PR stack contains native runtime, MLX transcription, memory co
 Checks cover backend selection, VAD/silence/clock restoration, hardware/weight precision gating, process ownership, environment preservation, model switching and persisted selection, FIFO cancellation/full queue/crash recovery, low-memory rejection, native upload authorization, unsupported timeline fields, encoder cancellation/failure and stale media-gate rejection. 38 Python tests, 107 Bun tests and TypeScript checks passed. A final real native two-cut/trim/scaling smoke check produced 60 frames and 2.000s duration. CPU/CUDA device selection is tested with mocks; actual CUDA inference cannot be validated on this Mac.
 
 Remaining release blockers: the 2× image target, native proxy quality/speed, native export speed, NLLB inference under a fitting memory budget, model-specific TTS/diarization MPS validation, broader CLIP/translation quality comparisons, and full image-inclusive sustained-session acceptance. Do not advertise those targets as achieved.
+
+
+### Presentation-time audio recheck
+
+The local-production audit found that raw FFmpeg PCM extraction discarded the initial audio presentation offset. The validator now uses `aresample=async=1:first_pts=0`. Rechecking the existing 4K benchmark artifacts measured 0ms browser/native audio offset (previous raw-sample measurement: 20ms). Frame count, duration and SSIM are unchanged; native speedup is still 0.943x, so automatic export remains disabled. These historical artifacts predate subsequent audio mixer changes and do not validate the whole latest export implementation.
+
+A separate current-production test generated deterministic nonperiodic stereo markers, split at two seconds and exported through the normal website. Both channels and all five markers, including the marker crossing the cut, measured 0ms offset. Source/encoded hashes and measurements are in the workspace `outputs/audio-split-alignment.json`. This corrects the earlier inferred ~23ms volume-ramp advance, which was a measurement artifact. Additional codec/sample-rate/speed/effects parity remains pending.

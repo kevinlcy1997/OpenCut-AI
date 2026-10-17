@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MissingMediaError } from "@/services/storage/media-integrity";
+import { MissingMediaRecovery } from "@/components/editor/missing-media-recovery";
+import { ProjectBackupControls } from "@/components/editor/project-backup-controls";
 import { Loader2 } from "lucide-react";
 import { useEditor } from "@/hooks/use-editor";
 import {
@@ -21,6 +24,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const editor = useEditor();
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
+	const [missingMedia, setMissingMedia] = useState<MissingMediaError["missing"]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
 	const activeProject = editor.project.getActiveOrNull();
@@ -39,6 +43,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
+				setError(null);
 				await editor.project.loadProject({ id: projectId });
 
 				if (cancelled) return;
@@ -48,27 +53,9 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 			} catch (err) {
 				if (cancelled) return;
 
-				const isNotFound =
-					err instanceof Error &&
-					(err.message.includes("not found") ||
-						err.message.includes("does not exist"));
-
-				if (isNotFound) {
-					try {
-						const newProjectId = await editor.project.createNewProject({
-							name: "Untitled Project",
-						});
-						router.replace(`/editor/${newProjectId}`);
-					} catch (_createErr) {
-						setError("Failed to create project");
-						setIsLoading(false);
-					}
-				} else {
-					setError(
-						err instanceof Error ? err.message : "Failed to load project",
-					);
-					setIsLoading(false);
-				}
+				setMissingMedia(err instanceof MissingMediaError ? err.missing : []);
+				setError(err instanceof Error ? err.message : "Failed to load project");
+				setIsLoading(false);
 			}
 		};
 
@@ -83,7 +70,11 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		return (
 			<div className="bg-background flex h-screen w-screen items-center justify-center">
 				<div className="flex flex-col items-center gap-4">
-					<p className="text-destructive text-sm">{error}</p>
+					<p className="text-destructive text-sm max-w-xl text-center">{error}</p>
+					{missingMedia.length > 0 && <MissingMediaRecovery projectId={projectId} missing={missingMedia} />}
+					<ProjectBackupControls />
+					<button type="button" className="underline" onClick={() => window.location.reload()}>Retry loading project</button>
+					<button type="button" className="underline" onClick={() => router.push("/projects")}>Back to projects</button>
 				</div>
 			</div>
 		);

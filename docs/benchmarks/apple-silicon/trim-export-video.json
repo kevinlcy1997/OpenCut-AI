@@ -1,0 +1,24 @@
+{
+  "source_sha256": "d1600ea011f772f7ee260d417b0324dd7c1abf2327514550182c1a53f078c563",
+  "export_sha256": "7c6b3238309641bfd78ea763f5ec990900283c78951ac34b4d72d72f73860727",
+  "expected_frames": 180,
+  "actual_frames": 180,
+  "fps": 30,
+  "duration_seconds": 6,
+  "leading_gap_frames": 60,
+  "leading_gap_max_rgb": 0.0,
+  "source_frame_offset_comparison_rgb_mae": {
+    "-2": 3.2951017498580955,
+    "-1": 2.377675673158791,
+    "0": 1.46949167198808,
+    "1": 2.379575306868171,
+    "2": 3.2915131217184617
+  },
+  "best_source_offset_frames": 0,
+  "zero_offset_mean_absolute_rgb_error": 1.46949167198808,
+  "limitations": [
+    "Reduced-resolution RGB comparison validates this trim/scale fixture only; not full color/effects parity",
+    "Audio validation uses nonperiodic fixture content windows rather than synthetic markers"
+  ],
+  "fixture_passed": true
+}

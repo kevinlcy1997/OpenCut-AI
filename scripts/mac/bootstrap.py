@@ -15,3 +15,7 @@ if os.environ.get("OPENCUT_MAC_SERVICE") == "face-service":
             module._detector.close()
             module._detector = None
         return {"status": "unloaded"}
+
+# Outermost: reject browser/Host abuse before CORS or model admission.
+from local_access import LocalAccessGuard
+app.add_middleware(LocalAccessGuard)

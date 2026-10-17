@@ -1,0 +1,44 @@
+{
+  "reference_sha256": "4b6ae9ce11df62d02e8fd9c440d7638bbabaf9a00f95eb5ce3278a1e2e7df687",
+  "encoded_sha256": "7c6b3238309641bfd78ea763f5ec990900283c78951ac34b4d72d72f73860727",
+  "audio_clock": "presentation time; initial gap preserved",
+  "offset_ms": [
+    0.0,
+    0.0
+  ],
+  "markers": [
+    {
+      "time_seconds": 2.5,
+      "offset_ms": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "time_seconds": 3.5,
+      "offset_ms": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "time_seconds": 4.5,
+      "offset_ms": [
+        -0.045351473922902494,
+        -0.045351473922902494
+      ]
+    },
+    {
+      "time_seconds": 5.5,
+      "offset_ms": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "alignment_passed": true,
+  "limitations": [
+    "Use nonperiodic markers; periodic tones do not uniquely establish alignment",
+    "Alignment only; does not establish codec quality or full timeline parity"
+  ]
+}

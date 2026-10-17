@@ -1,3 +1,4 @@
+import { frameCountForDuration } from "@/lib/media/frame-count";
 import {
 	Input,
 	ALL_FORMATS,
@@ -39,6 +40,11 @@ export async function generateProxy(
 	options: ProxyGenerateOptions,
 ): Promise<ProxyGenerateResult> {
 	const { file, resolution, onProgress, signal } = options;
+	const checkCancellation = () => {
+		if (signal?.aborted)
+			throw new DOMException("Proxy generation cancelled", "AbortError");
+	};
+	checkCancellation();
 	const preset = PROXY_PRESETS[resolution];
 
 	const input = new Input({
@@ -46,11 +52,19 @@ export async function generateProxy(
 		formats: ALL_FORMATS,
 	});
 
+	let browserOutput: Output | null = null;
+	let finalized = false;
+	let proxyCanvas: HTMLCanvasElement | null = null;
+	const abortInput = () => input.dispose();
+	signal?.addEventListener("abort", abortInput, { once: true });
 	try {
+		checkCancellation();
 		const videoTrack = await input.getPrimaryVideoTrack();
+		checkCancellation();
 		if (!videoTrack) throw new Error("No video track found");
 
 		const canDecode = await videoTrack.canDecode();
+		checkCancellation();
 		if (!canDecode) throw new Error("Video codec not supported for decoding");
 
 		const origWidth = videoTrack.displayWidth;
@@ -69,7 +83,7 @@ export async function generateProxy(
 
 		const stats = await videoTrack.computePacketStats();
 		const fps = Math.min(stats.averagePacketRate ?? 30, 30);
-		const frameCount = Math.ceil(duration * fps);
+		const frameCount = frameCountForDuration(duration, fps);
 		// Hardware route is enabled only after recorded parity and speed gates.
 		let session = null;
 		try {
@@ -112,6 +126,7 @@ export async function generateProxy(
 						options.onProgress,
 						options.signal,
 					);
+					checkCancellation();
 					return {
 						file: new File([blob], `${file.name}.proxy.mp4`, {
 							type: "video/mp4",
@@ -128,7 +143,9 @@ export async function generateProxy(
 			}
 		}
 
+		checkCancellation();
 		const canvas = document.createElement("canvas");
+		proxyCanvas = canvas;
 		canvas.width = proxyWidth;
 		canvas.height = proxyHeight;
 		const ctx = canvas.getContext("2d");
@@ -144,6 +161,8 @@ export async function generateProxy(
 			target: new BufferTarget(),
 		});
 
+		browserOutput = output;
+
 		const videoSource = new CanvasSource(canvas, {
 			codec: "avc",
 			bitrate: QUALITY_LOW,
@@ -156,6 +175,7 @@ export async function generateProxy(
 			),
 		});
 
+		checkCancellation();
 		output.addVideoTrack(videoSource, { frameRate: fps });
 		await output.start();
 
@@ -164,10 +184,7 @@ export async function generateProxy(
 
 		try {
 			for await (const frame of iterator) {
-				if (signal?.aborted) {
-					await output.cancel();
-					throw new Error("Proxy generation cancelled");
-				}
+				checkCancellation();
 
 				if (ctx) {
 					ctx.clearRect(0, 0, proxyWidth, proxyHeight);
@@ -189,8 +206,11 @@ export async function generateProxy(
 			} catch {}
 		}
 
+		checkCancellation();
 		videoSource.close();
 		await output.finalize();
+		finalized = true;
+		checkCancellation();
 
 		const buffer = output.target.buffer;
 		if (!buffer) throw new Error("Failed to generate proxy");
@@ -200,9 +220,28 @@ export async function generateProxy(
 		});
 
 		onProgress?.(1);
+		checkCancellation();
 
 		return { file: proxyFile, width: proxyWidth, height: proxyHeight };
+	} catch (error) {
+		checkCancellation();
+		throw error;
 	} finally {
+		signal?.removeEventListener("abort", abortInput);
 		input.dispose();
+		try {
+			if (browserOutput && !finalized) {
+				try {
+					await browserOutput.cancel();
+				} catch (error) {
+					console.warn("Proxy encoder cleanup failed", error);
+				}
+			}
+		} finally {
+			if (proxyCanvas) {
+				proxyCanvas.width = 1;
+				proxyCanvas.height = 1;
+			}
+		}
 	}
 }

@@ -32,8 +32,22 @@ export class OPFSAdapter implements StorageAdapter<File> {
 		const fileHandle = await directory.getFileHandle(key, { create: true });
 		const writable = await fileHandle.createWritable();
 
-		await writable.write(file);
-		await writable.close();
+		try {
+			await writable.write(file);
+			await writable.close();
+		} catch (error) {
+			// Release the stream and discard uncommitted bytes on quota/I/O failure.
+			// Never remove the destination: it may contain an existing original.
+			try {
+				await writable.abort();
+			} catch (abortError) {
+				throw new AggregateError(
+					[error, abortError],
+					"Media write failed and its temporary stream could not be aborted. Retry after checking browser storage.",
+				);
+			}
+			throw error;
+		}
 	}
 
 	async remove(key: string): Promise<void> {
