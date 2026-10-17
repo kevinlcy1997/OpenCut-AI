@@ -22,7 +22,7 @@ export interface AudioEffectDefinition {
 	name: string;
 	keywords: string[];
 	params: AudioEffectParam[];
-	createNodes: (ctx: AudioContext, params: Record<string, number>) => AudioNode[];
+	createNodes: (ctx: BaseAudioContext, params: Record<string, number>) => AudioNode[];
 }
 
 /** A configured audio effect instance stored on a track. */

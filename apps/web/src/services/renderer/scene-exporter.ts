@@ -1,3 +1,4 @@
+import { frameCountForDuration } from "@/lib/media/frame-count";
 import EventEmitter from "eventemitter3";
 
 import {
@@ -134,7 +135,7 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 		rootNode: RootNode;
 	}): Promise<ArrayBuffer | null> {
 		const { fps } = this.renderer;
-		const frameCount = Math.ceil(rootNode.duration * fps);
+		const frameCount = frameCountForDuration(rootNode.duration, fps);
 		if (
 			this.encoder === "auto" &&
 			this.format === "mp4" &&

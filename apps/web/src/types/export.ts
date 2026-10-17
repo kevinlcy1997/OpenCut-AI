@@ -28,6 +28,7 @@ export interface ExportResult {
 
 export interface ExportState {
 	isExporting: boolean;
+	cancelRequested?: boolean;
 	progress: number;
 	result: ExportResult | null;
 }

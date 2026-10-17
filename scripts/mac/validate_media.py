@@ -16,7 +16,7 @@ def probe(path):
 
 
 def audio(path):
-    result = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"], check=True, capture_output=True)
+    result = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vn", "-af", "aresample=async=1:first_pts=0", "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"], check=True, capture_output=True)
     return np.frombuffer(result.stdout, dtype="<f4")
 
 
@@ -60,7 +60,7 @@ def main():
     audio_passed = offset is not None and offset <= 20 if args.kind == "export" else all(not any(stream["codec_type"] == "audio" for stream in info["streams"]) for info in (first_probe, second_probe))
     parity = frames_equal and duration_difference <= 1/30 and ssim >= .99 and audio_passed and effects_rejected
     summary = {"browser_version": report["browser_version"], "speedup": speedup, "frames_equal": frames_equal,
-               "duration_difference_seconds": duration_difference, "ssim": ssim, "audio_offset_ms": offset,
+               "duration_difference_seconds": duration_difference, "ssim": ssim, "audio_offset_ms": offset, "audio_clock": "presentation time; initial gap preserved",
                "effects_rejected": effects_rejected, "parity_passed": parity, f"automatic_{args.kind}_passed": parity and speedup >= 1.25,
                "limitations": ["Single 4K SDR 30fps source; other source profiles require additional validation", "Visual comparison is against browser output, not source compression quality"]}
     args.output.parent.mkdir(parents=True, exist_ok=True); args.output.write_text(json.dumps(summary, indent=2))

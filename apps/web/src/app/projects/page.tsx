@@ -65,6 +65,8 @@ import { ProjectInfoDialog } from "@/components/editor/dialogs/project-info-dial
 import { RenameProjectDialog } from "@/components/editor/dialogs/rename-project-dialog";
 import { cn } from "@/utils/ui";
 
+import { ProjectBackupControls } from "@/components/editor/project-backup-controls";
+
 const formatProjectDuration = ({
 	duration,
 }: {
@@ -101,6 +103,7 @@ export default function ProjectsPage() {
 
 	const isLoading = editor.project.getIsLoading();
 	const isInitialized = editor.project.getIsInitialized();
+	const loadError = editor.project.getProjectListError();
 
 	return (
 		<div className="bg-background min-h-screen">
@@ -108,7 +111,14 @@ export default function ProjectsPage() {
 			<ProjectsHeader />
 			<ProjectsToolbar projectIds={projectsToDisplay.map((p) => p.id)} />
 			<main className="mx-auto px-4 pt-2 pb-6 flex flex-col gap-4">
-				{isLoading || !isInitialized ? (
+				{loadError ? (
+					<div role="alert" className="rounded-lg border border-destructive/40 p-6 flex flex-col gap-3">
+						<h2 className="font-semibold">Could not load your projects</h2>
+						<p>Your project list could not be read from browser storage. Retry before creating or restoring projects.</p>
+						<p className="text-sm text-muted-foreground">{loadError}</p>
+						<Button className="self-start" onClick={() => { void editor.project.loadAllProjects(); }}>Retry loading projects</Button>
+					</div>
+				) : isLoading || !isInitialized ? (
 					<ProjectsSkeleton />
 				) : projectsToDisplay.length === 0 ? (
 					<EmptyState />
@@ -181,6 +191,7 @@ function ProjectsHeader() {
 
 				<div className="flex items-center gap-3 md:gap-4">
 					<SearchBar className="hidden md:block" />
+					<ProjectBackupControls />
 					<NewProjectButton />
 				</div>
 			</div>
@@ -504,12 +515,19 @@ function SortDropdown({ children }: { children: React.ReactNode }) {
 function NewProjectButton() {
 	const editor = useEditor();
 	const router = useRouter();
+	const [creating, setCreating] = useState(false);
 
 	const handleCreateProject = async () => {
+		if (creating) return;
+		setCreating(true);
+		try {
 		const projectId = await editor.project.createNewProject({
 			name: "New project",
 		});
 		router.push(`/editor/${projectId}`);
+		} catch (error) {
+			console.error("Project creation failed:", error);
+		} finally { setCreating(false); }
 	};
 
 	return (
@@ -517,6 +535,7 @@ function NewProjectButton() {
 			size="lg"
 			className="flex px-5 md:px-6"
 			onClick={handleCreateProject}
+			disabled={creating}
 		>
 			<span className="text-sm font-medium hidden md:block">New project</span>
 			<span className="text-sm font-medium block md:hidden">New</span>

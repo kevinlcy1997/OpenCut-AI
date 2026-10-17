@@ -48,3 +48,6 @@ ai-generated/
 
 *.md
 !apps/web/content/changelog/**/*.md
+
+# Separate local production build output
+apps/web/.next-production/

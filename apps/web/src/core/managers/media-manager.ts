@@ -1,3 +1,4 @@
+import { clearImageSourceCache } from "@/services/renderer/image-source-cache";
 import type { EditorCore } from "@/core";
 import type { MediaAsset } from "@/types/assets";
 import { storageService } from "@/services/storage/service";
@@ -14,33 +15,50 @@ import { deleteEmbedding } from "@/services/search/embedding-store";
 
 export class MediaManager {
 	private assets: MediaAsset[] = [];
+	private generation = 0;
+	private pendingMediaRemovals = 0;
 	private isLoading = false;
 	private listeners = new Set<() => void>();
 	private proxyGenerators = new Map<string, AbortController>();
 
-	constructor(private editor: EditorCore) {}
+	constructor(
+		private editor: EditorCore,
+		private proxyGenerator: typeof generateProxy = generateProxy,
+	) {}
+
+	getSessionToken(): number {
+		return this.generation;
+	}
 
 	async addMediaAsset({
 		projectId,
 		asset,
+		sessionToken = this.generation,
 	}: {
 		projectId: string;
 		asset: Omit<MediaAsset, "id">;
+		sessionToken?: number;
 	}): Promise<string> {
+		const generation = sessionToken;
+		this.assertProject(projectId, generation);
 		const newAsset: MediaAsset = {
 			...asset,
 			id: generateUUID(),
 		};
 
-		this.assets = [...this.assets, newAsset];
-		this.notify();
-
 		try {
 			await storageService.saveMediaAsset({ projectId, mediaAsset: newAsset });
+			this.assertProject(projectId, generation);
+			this.assets = [...this.assets, newAsset];
+			this.notify();
 		} catch (error) {
-			console.error("Failed to save media asset:", error);
+			if ((error as Error).name !== "AbortError")
+				console.error("Failed to save media asset:", error);
+			for (const url of [newAsset.url, newAsset.thumbnailUrl])
+				if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
 			this.assets = this.assets.filter((asset) => asset.id !== newAsset.id);
 			this.notify();
+			throw error;
 		}
 
 		return newAsset.id;
@@ -55,18 +73,17 @@ export class MediaManager {
 		id: string;
 		updates: Partial<Pick<MediaAsset, "label" | "name">>;
 	}): Promise<void> {
-		const index = this.assets.findIndex((a) => a.id === id);
-		if (index === -1) return;
-
-		const updated = { ...this.assets[index], ...updates };
-		this.assets = this.assets.map((a) => (a.id === id ? updated : a));
+		const generation = this.generation;
+		this.assertProject(projectId, generation);
+		if (!this.assets.some((asset) => asset.id === id)) return;
+		const metadata = await storageService.updateMediaMetadata({ projectId, id, updates });
+		this.assertProject(projectId, generation);
+		this.assets = this.assets.map((asset) => asset.id === id ? { ...asset, ...metadata } : asset);
 		this.notify();
+	}
 
-		try {
-			await storageService.saveMediaAsset({ projectId, mediaAsset: updated });
-		} catch (error) {
-			console.error("Failed to update media asset:", error);
-		}
+	getIsRemovingMedia(): boolean {
+		return this.pendingMediaRemovals > 0;
 	}
 
 	async removeMediaAsset({
@@ -76,49 +93,57 @@ export class MediaManager {
 		projectId: string;
 		id: string;
 	}): Promise<void> {
+		const generation = this.generation;
+		this.assertProject(projectId, generation);
+		if (this.editor.project.getExportState().isExporting)
+			throw new Error("Wait for the export to finish or cancel it before removing media");
 		const asset = this.assets.find((asset) => asset.id === id);
-
-		videoCache.clearVideo({ mediaId: id });
-		deleteEmbedding(id).catch(() => undefined);
-
-		if (asset?.url) {
-			URL.revokeObjectURL(asset.url);
-			if (asset.thumbnailUrl) {
-				URL.revokeObjectURL(asset.thumbnailUrl);
-			}
-			if (asset.proxyUrl) {
-				URL.revokeObjectURL(asset.proxyUrl);
-			}
-		}
-
+		if (!asset) return;
 		const controller = this.proxyGenerators.get(id);
-		if (controller) {
-			controller.abort();
-			this.proxyGenerators.delete(id);
-		}
-
-		this.assets = this.assets.filter((asset) => asset.id !== id);
-		this.notify();
-
-		const tracks = this.editor.timeline.getTracks();
-		const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
-
-		for (const track of tracks) {
-			for (const element of track.elements) {
-				if (hasMediaId(element) && element.mediaId === id) {
-					elementsToRemove.push({ trackId: track.id, elementId: element.id });
-				}
-			}
-		}
-
-		if (elementsToRemove.length > 0) {
-			this.editor.timeline.deleteElements({ elements: elementsToRemove });
-		}
-
+		controller?.abort();
+		if (this.proxyGenerators.get(id) === controller) this.proxyGenerators.delete(id);
+		// A failed storage removal must not silently discard the editing state.
+		this.pendingMediaRemovals++;
 		try {
 			await storageService.deleteMediaAsset({ projectId, id });
-		} catch (error) {
-			console.error("Failed to delete media asset:", error);
+			this.assertProject(projectId, generation);
+			if (!this.assets.some((item) => item.id === id)) return;
+
+			videoCache.clearVideo({ mediaId: id });
+			clearImageSourceCache();
+			deleteEmbedding(id).catch(() => undefined);
+
+			if (asset?.url) {
+				URL.revokeObjectURL(asset.url);
+				if (asset.thumbnailUrl) {
+					URL.revokeObjectURL(asset.thumbnailUrl);
+				}
+				if (asset.proxyUrl) {
+					URL.revokeObjectURL(asset.proxyUrl);
+				}
+			}
+
+			this.assets = this.assets.filter((asset) => asset.id !== id);
+			this.notify();
+
+			const tracks = this.editor.timeline.getTracks();
+			const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
+
+			for (const track of tracks) {
+				for (const element of track.elements) {
+					if (hasMediaId(element) && element.mediaId === id) {
+						elementsToRemove.push({ trackId: track.id, elementId: element.id });
+					}
+				}
+			}
+
+			if (elementsToRemove.length > 0) {
+				this.editor.timeline.deleteElements({ elements: elementsToRemove });
+			}
+
+		} finally {
+			this.pendingMediaRemovals--;
+			this.notify();
 		}
 	}
 
@@ -134,14 +159,13 @@ export class MediaManager {
 
 			const proxyPromises = mediaAssets
 				.filter((a) => a.proxy)
-				.map((a) =>
-					this.loadProxyForAsset({ assetId: a.id, projectId }),
-				);
+				.map((a) => this.loadProxyForAsset({ assetId: a.id, projectId }));
 			await Promise.all(proxyPromises);
 
 			this.notify();
 		} catch (error) {
 			console.error("Failed to load media assets:", error);
+			throw error;
 		} finally {
 			this.isLoading = false;
 			this.notify();
@@ -184,7 +208,21 @@ export class MediaManager {
 		}
 	}
 
+	private assertProject(projectId: string, generation: number): void {
+		if (
+			this.generation !== generation ||
+			this.editor.project.getActiveOrNull()?.metadata.id !== projectId
+		) {
+			throw new DOMException(
+				"The project changed while media was processing",
+				"AbortError",
+			);
+		}
+	}
+
 	clearAllAssets(): void {
+		this.generation++;
+		clearImageSourceCache();
 		videoCache.clearAll();
 
 		for (const [, controller] of this.proxyGenerators) {
@@ -249,6 +287,8 @@ export class MediaManager {
 		resolution: ProxyResolution;
 		onProgress?: (progress: number) => void;
 	}): Promise<void> {
+		const generation = this.generation;
+		this.assertProject(projectId, generation);
 		const asset = this.assets.find((a) => a.id === assetId);
 		if (!asset || asset.type !== "video") return;
 
@@ -262,15 +302,26 @@ export class MediaManager {
 		this.proxyGenerators.set(assetId, controller);
 		this.notify();
 
+		let proxyUrl: string | undefined;
+		let published = false;
+		const check = () => {
+			this.assertProject(projectId, generation);
+			if (
+				controller.signal.aborted ||
+				this.proxyGenerators.get(assetId) !== controller
+			)
+				throw new DOMException("Proxy cancelled", "AbortError");
+		};
 		try {
-			const result = await generateProxy({
+			const result = await this.proxyGenerator({
 				file: asset.file,
 				resolution,
 				onProgress,
 				signal: controller.signal,
 			});
 
-			const proxyUrl = URL.createObjectURL(result.file);
+			check();
+			proxyUrl = URL.createObjectURL(result.file);
 
 			await storageService.saveProxyFile({
 				projectId,
@@ -278,6 +329,7 @@ export class MediaManager {
 				proxyFile: result.file,
 			});
 
+			check();
 			const updatedAsset: MediaAsset = {
 				...asset,
 				proxyFile: result.file,
@@ -291,22 +343,25 @@ export class MediaManager {
 				},
 			};
 
-			this.assets = this.assets.map((a) =>
-				a.id === assetId ? updatedAsset : a,
-			);
-
 			await storageService.saveMediaAsset({
 				projectId,
 				mediaAsset: updatedAsset,
 			});
 
+			check();
+			this.assets = this.assets.map((a) =>
+				a.id === assetId ? updatedAsset : a,
+			);
+			published = true;
 			this.notify();
 		} catch (error) {
 			if ((error as Error).name !== "AbortError") {
 				console.error("Proxy generation failed:", error);
 			}
 		} finally {
-			this.proxyGenerators.delete(assetId);
+			if (!published && proxyUrl) URL.revokeObjectURL(proxyUrl);
+			if (this.proxyGenerators.get(assetId) === controller)
+				this.proxyGenerators.delete(assetId);
 			this.notify();
 		}
 	}
@@ -331,9 +386,7 @@ export class MediaManager {
 			const proxyUrl = URL.createObjectURL(proxyFile);
 
 			this.assets = this.assets.map((a) =>
-				a.id === assetId
-					? { ...a, proxyFile, proxyUrl }
-					: a,
+				a.id === assetId ? { ...a, proxyFile, proxyUrl } : a,
 			);
 			this.notify();
 		} catch (error) {

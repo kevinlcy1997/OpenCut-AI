@@ -16,7 +16,10 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 			const request = indexedDB.open(this.dbName, this.version);
 
 			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result);
+			request.onsuccess = () => {
+				request.result.onversionchange = () => request.result.close();
+				resolve(request.result);
+			};
 
 			request.onupgradeneeded = (event) => {
 				const db = (event.target as IDBOpenDBRequest).result;
@@ -27,76 +30,107 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 		});
 	}
 
-	async get(key: string): Promise<T | null> {
+	private async transact<R>(
+		mode: IDBTransactionMode,
+		operation: (store: IDBObjectStore) => IDBRequest<R>,
+	): Promise<R> {
 		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readonly");
-		const store = transaction.objectStore(this.storeName);
-
-		return new Promise((resolve, reject) => {
-			const request = store.get(key);
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result || null);
+		return new Promise<R>((resolve, reject) => {
+			let transaction: IDBTransaction;
+			let result: R;
+			try {
+				transaction = db.transaction([this.storeName], mode);
+				transaction.oncomplete = () => {
+					db.close();
+					resolve(result);
+				};
+				transaction.onabort = () => {
+					db.close();
+					reject(transaction.error ?? new Error("Storage transaction aborted"));
+				};
+				const request = operation(transaction.objectStore(this.storeName));
+				request.onsuccess = () => {
+					result = request.result;
+				};
+				// Request success precedes commit. Only oncomplete proves durability.
+				// Request errors bubble to the transaction and cause an abort.
+			} catch (error) {
+				db.close();
+				reject(error);
+			}
 		});
 	}
 
-	async set(key: string, value: T): Promise<void> {
-		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readwrite");
-		const store = transaction.objectStore(this.storeName);
+	async get(key: string): Promise<T | null> {
+		return (
+			(await this.transact<T | undefined>("readonly", (store) =>
+				store.get(key),
+			)) ?? null
+		);
+	}
 
-		return new Promise((resolve, reject) => {
-			const request = store.put({ id: key, ...value });
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve();
+	async set(key: string, value: T): Promise<void> {
+		await this.transact("readwrite", (store) =>
+			store.put({ ...value, id: key }),
+		);
+	}
+
+	/** Synchronous read/modify/write in one transaction, resolved only on commit. */
+	async update(key: string, change: (value: T) => T): Promise<T> {
+		const db = await this.getDB();
+		return new Promise<T>((resolve, reject) => {
+			let result: T;
+			let failure: unknown;
+			try {
+				const transaction = db.transaction([this.storeName], "readwrite");
+				transaction.oncomplete = () => {
+					db.close();
+					resolve(result);
+				};
+				transaction.onabort = () => {
+					db.close();
+					reject(
+						failure ??
+							transaction.error ??
+							new Error("Storage transaction aborted"),
+					);
+				};
+				const store = transaction.objectStore(this.storeName);
+				const request = store.get(key);
+				request.onsuccess = () => {
+					try {
+						if (request.result === undefined)
+							throw new Error("Stored record is missing");
+						result = change(request.result);
+						store.put({ ...result, id: key });
+					} catch (error) {
+						failure = error;
+						transaction.abort();
+					}
+				};
+			} catch (error) {
+				db.close();
+				reject(error);
+			}
 		});
 	}
 
 	async remove(key: string): Promise<void> {
-		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readwrite");
-		const store = transaction.objectStore(this.storeName);
-
-		return new Promise((resolve, reject) => {
-			const request = store.delete(key);
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve();
-		});
+		await this.transact("readwrite", (store) => store.delete(key));
 	}
 
 	async list(): Promise<string[]> {
-		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readonly");
-		const store = transaction.objectStore(this.storeName);
-
-		return new Promise((resolve, reject) => {
-			const request = store.getAllKeys();
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result as string[]);
-		});
+		return (await this.transact("readonly", (store) =>
+			store.getAllKeys(),
+		)) as string[];
 	}
 
 	async getAll(): Promise<T[]> {
-		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readonly");
-		const store = transaction.objectStore(this.storeName);
-
-		return new Promise((resolve, reject) => {
-			const request = store.getAll();
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result || []);
-		});
+		return await this.transact("readonly", (store) => store.getAll());
 	}
 
 	async clear(): Promise<void> {
-		const db = await this.getDB();
-		const transaction = db.transaction([this.storeName], "readwrite");
-		const store = transaction.objectStore(this.storeName);
-
-		return new Promise((resolve, reject) => {
-			const request = store.clear();
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve();
-		});
+		await this.transact("readwrite", (store) => store.clear());
 	}
 }
 

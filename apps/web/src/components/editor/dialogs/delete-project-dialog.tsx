@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,15 +20,29 @@ export function DeleteProjectDialog({
 }: {
 	isOpen: boolean;
 	onOpenChange: (open: boolean) => void;
-	onConfirm: () => void;
+	onConfirm: () => void | Promise<void>;
 	projectNames: string[];
 }) {
+	const [confirmation, setConfirmation] = useState("");
+	const [busy, setBusy] = useState(false);
+	useEffect(() => {
+		if (!isOpen) setConfirmation("");
+	}, [isOpen]);
+	const confirm = async () => {
+		if (confirmation !== "DELETE" || busy) return;
+		setBusy(true);
+		try {
+			await onConfirm();
+		} finally {
+			setBusy(false);
+		}
+	};
 	const count = projectNames.length;
 	const isSingle = count === 1;
 	const singleName = isSingle ? projectNames[0] : null;
 
 	return (
-		<Dialog open={isOpen} onOpenChange={onOpenChange}>
+		<Dialog open={isOpen} onOpenChange={(open) => { if (!busy) onOpenChange(open); }}>
 			<DialogContent
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
@@ -65,17 +80,26 @@ export function DeleteProjectDialog({
 						<Input
 							type="text"
 							placeholder="DELETE"
+							value={confirmation}
+							onChange={(event) => setConfirmation(event.target.value)}
+							disabled={busy}
 							size="lg"
 							variant="destructive"
 						/>
 					</div>
 				</DialogBody>
 				<DialogFooter>
-					<Button variant="outline" onClick={() => onOpenChange(false)}>
+					<Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					<Button variant="destructive" onClick={onConfirm}>
-						Delete project
+					<Button
+						variant="destructive"
+						disabled={confirmation !== "DELETE" || busy}
+						onClick={() => {
+							void confirm().catch(() => {});
+						}}
+					>
+						{busy ? "Deleting…" : "Delete project"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

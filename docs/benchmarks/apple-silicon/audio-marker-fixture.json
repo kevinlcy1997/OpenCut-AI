@@ -1,0 +1,16 @@
+{
+  "fixture": "stereo-markers-4s.wav",
+  "sha256": "dfa9fcb8b14086a8e848cb8bf518ff2fab0ea3998cff1a5d4c6c40fd219a579c",
+  "sample_rate": 44100,
+  "channels": 2,
+  "duration_seconds": 4,
+  "marker_seconds": [
+    0.25,
+    1.25,
+    1.99,
+    2.5,
+    3.75
+  ],
+  "seed": 20261016,
+  "source": "synthetic; no third-party media"
+}

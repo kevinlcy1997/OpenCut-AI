@@ -1,0 +1,40 @@
+{
+  "first_still_frame": 60,
+  "expected_first_still_frame": 60,
+  "fps": 30.0,
+  "video_duration_seconds": 4.0,
+  "red_card_bounds_xyxy": [
+    80,
+    46,
+    240,
+    134
+  ],
+  "expected_red_card_bounds_xyxy": [
+    80,
+    45,
+    240,
+    135
+  ],
+  "encoded_sha256": "149679010e1acf096ee83ea9ce6bddf8c26c6b6a16069e3c1f7f5291eea12a83",
+  "frames": 120,
+  "expected_frames": 120,
+  "first_60_frames_rgb_mae": 4.485489004629629,
+  "last_60_frames_red_interior_mean_rgb": [
+    253.0,
+    0.0,
+    0.0
+  ],
+  "black_margin_max_rgb": 0.0,
+  "left_channel_gain_at_440_880_hz": [
+    0.24998700521362865,
+    0.24999280837547586
+  ],
+  "right_to_left_rms_ratio": 0.0,
+  "fixture_passed": true,
+  "limitations": [
+    "Fixed 320x180, 30fps video/still/audio fixture only",
+    "Video RGB error threshold is a smoke check, not full color or perceptual quality parity",
+    "No transitions, captions, masks, effects, arbitrary color transforms or live preview validation",
+    "Tone amplitude verifies gain/pan, not precise audio/video alignment"
+  ]
+}

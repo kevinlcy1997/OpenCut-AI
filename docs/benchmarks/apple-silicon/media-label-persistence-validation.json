@@ -1,0 +1,25 @@
+{
+  "project_id": "a3a27624-8757-4e66-b9fd-18eb967a7ce4",
+  "label_after_reload": "Scene card",
+  "original_media_sha256_unchanged": true,
+  "asset_count": 3,
+  "assets": {
+    "c5e559bd-1be1-401b-827c-3c0cc392de5b": {
+      "label": null,
+      "sha256": "d1600ea011f772f7ee260d417b0324dd7c1abf2327514550182c1a53f078c563"
+    },
+    "card": {
+      "label": "Scene card",
+      "sha256": "ca856651b51ae88d8b1fdeb7d76730339bed18bff511111a60a28852fb1bcda7"
+    },
+    "tone": {
+      "label": null,
+      "sha256": "e5530f151a6ba3e49684f8a512e88409cde6e85fa05b0af8c5cedef14d758580"
+    }
+  },
+  "passed": true,
+  "limitations": [
+    "Backup hashes establish original bytes were preserved, not the number of physical writes",
+    "No original-file writer calls are verified by storage-layer tests; browser quota errors remain unverified"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "outside_marker_energy_fraction": [
+    0.0,
+    0.0
+  ],
+  "source_sha256": "8f94da9807603bb118272b09f4afc337bbd50d9621e770841caa7a3b073c7275",
+  "encoded_sha256": "7c2d0445e62e22de9a6ddab52111315fecc4d0d376120d8fcf75296e0bfa2671",
+  "method": "per-channel marker energy centroid on presentation time",
+  "curve": "hold",
+  "source_mapping": "t for t<1; 1+3*(t-1) otherwise",
+  "markers": [
+    {
+      "source_marker_seconds": 0.25,
+      "expected_window_center_seconds": 0.265,
+      "energy_centroid_offset_ms": [
+        -0.06772866046883541,
+        0.014593318432731817
+      ]
+    },
+    {
+      "source_marker_seconds": 0.99,
+      "expected_window_center_seconds": 1.0016666666666667,
+      "energy_centroid_offset_ms": [
+        0.4955847322780649,
+        0.43823443309976007
+      ]
+    },
+    {
+      "source_marker_seconds": 1.25,
+      "expected_window_center_seconds": 1.0883333333333334,
+      "energy_centroid_offset_ms": [
+        0.8695386433357211,
+        0.9205640609517562
+      ]
+    },
+    {
+      "source_marker_seconds": 1.99,
+      "expected_window_center_seconds": 1.335,
+      "energy_centroid_offset_ms": [
+        0.8770102161881344,
+        0.9111555023340046
+      ]
+    },
+    {
+      "source_marker_seconds": 2.5,
+      "expected_window_center_seconds": 1.505,
+      "energy_centroid_offset_ms": [
+        0.9193941531131511,
+        0.9407804183443336
+      ]
+    },
+    {
+      "source_marker_seconds": 3.75,
+      "expected_window_center_seconds": 1.9216666666666669,
+      "energy_centroid_offset_ms": [
+        0.8659633607555062,
+        0.8651291037833353
+      ]
+    }
+  ],
+  "marker_timing_passed": true,
+  "limitations": [
+    "Fixed two-second linear/hold speed fixtures only",
+    "Energy timing only; not waveform fidelity, pitch, preview alignment or arbitrary curve parity",
+    "Energy timing does not establish raw-waveform correlation"
+  ],
+  "video": {
+    "frames": 60,
+    "duration_seconds": 2.0,
+    "frame_rate": "30/1"
+  }
+}

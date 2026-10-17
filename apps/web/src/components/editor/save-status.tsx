@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useEditor } from "@/hooks/use-editor";
 import { cn } from "@/utils/ui";
 
@@ -19,6 +19,8 @@ function formatTimeAgo(timestamp: number): string {
  */
 export function SaveStatus({ className }: { className?: string }) {
 	const editor = useEditor();
+	const [saveError, setSaveError] = useState<string | null>(null);
+	const [isDirty, setIsDirty] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [lastSaved, setLastSaved] = useState<number | null>(null);
 	const [, setTick] = useState(0);
@@ -26,6 +28,8 @@ export function SaveStatus({ className }: { className?: string }) {
 	// Subscribe to save status changes
 	useEffect(() => {
 		const update = () => {
+			setSaveError(editor.save.getLastError());
+			setIsDirty(editor.save.getIsDirty());
 			setIsSaving(editor.save.getIsSaving());
 			setLastSaved(editor.save.getLastSavedAt());
 		};
@@ -50,9 +54,38 @@ export function SaveStatus({ className }: { className?: string }) {
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 	}, [editor]);
 
+	if (saveError && !isSaving) {
+		return (
+			<button
+				type="button"
+				className={cn("text-[10px] text-destructive", className)}
+				title={saveError}
+				onClick={() => {
+					void editor.save.flush().catch(() => {});
+				}}
+				aria-label="Save failed. Retry saving project"
+			>
+				Save failed · Retry
+			</button>
+		);
+	}
+
+	if (isDirty && !isSaving) {
+		return (
+			<span className={cn("text-[10px] text-muted-foreground", className)}>
+				Unsaved changes
+			</span>
+		);
+	}
+
 	if (isSaving) {
 		return (
-			<span className={cn("text-[10px] text-muted-foreground animate-pulse", className)}>
+			<span
+				className={cn(
+					"text-[10px] text-muted-foreground animate-pulse",
+					className,
+				)}
+			>
 				Saving...
 			</span>
 		);

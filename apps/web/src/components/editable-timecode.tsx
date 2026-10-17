@@ -66,16 +66,14 @@ export function EditableTimecode({
 		enterPressedRef.current = false;
 	};
 
-	const handleKeyDown = ({
-		key,
-		preventDefault,
-	}: React.KeyboardEvent<HTMLInputElement>) => {
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+		const { key } = event;
 		if (key === "Enter") {
-			preventDefault();
+			event.preventDefault();
 			enterPressedRef.current = true;
 			applyEdit();
 		} else if (key === "Escape") {
-			preventDefault();
+			event.preventDefault();
 			cancelEditing();
 		}
 	};
@@ -93,14 +91,12 @@ export function EditableTimecode({
 		}
 	};
 
-	const handleDisplayKeyDown = ({
-		key,
-		preventDefault,
-	}: React.KeyboardEvent<HTMLButtonElement>) => {
+	const handleDisplayKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+		const { key } = event;
 		if (disabled) return;
 
 		if (key === "Enter" || key === " ") {
-			preventDefault();
+			event.preventDefault();
 			startEditing();
 		}
 	};
