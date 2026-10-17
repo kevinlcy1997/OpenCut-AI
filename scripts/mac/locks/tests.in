@@ -1,0 +1,5 @@
+# Lightweight Linux CI tests; no model downloads, native GPU packages or services.
+httpx==0.27.0
+psutil==7.2.2
+starlette==0.38.6
+numpy==2.4.6

@@ -121,3 +121,140 @@ test("a proxy finishing after project navigation cannot publish or persist its r
 	expect(manager.getAssets()).toEqual([]);
 	expect(manager.isProxyGenerating("video")).toBe(false);
 });
+
+function deletionHarness() {
+	let active = "a",
+		exporting = false;
+	const removed: unknown[] = [];
+	const manager = new MediaManager({
+		project: {
+			getActiveOrNull: () => ({ metadata: { id: active } }),
+			getExportState: () => ({ isExporting: exporting }),
+		},
+		timeline: {
+			getTracks: () => [
+				{
+					id: "track",
+					elements: [{ id: "clip", type: "image", mediaId: "media-id" }],
+				},
+			],
+			deleteElements: (args: unknown) => {
+				removed.push(args);
+			},
+		},
+	} as unknown as EditorCore);
+	manager.setAssets({ assets: [{ ...asset, id: "media-id" }] });
+	return {
+		manager,
+		removed,
+		setExporting: () => {
+			exporting = true;
+		},
+		switchProject: () => {
+			active = "b";
+			manager.clearAllAssets();
+			manager.setAssets({ assets: [{ ...asset, id: "media-id" }] });
+		},
+	};
+}
+
+test("failed media removal preserves the asset and timeline for a visible retry", async () => {
+	const f = deletionHarness();
+	const deleting = spyOn(storageService, "deleteMediaAsset").mockRejectedValue(
+		new Error("storage unavailable"),
+	);
+	restores.push(() => deleting.mockRestore());
+	await expect(
+		f.manager.removeMediaAsset({ projectId: "a", id: "media-id" }),
+	).rejects.toThrow("storage unavailable");
+	expect(f.manager.getAssets()).toHaveLength(1);
+	expect(f.removed).toEqual([]);
+	deleting.mockResolvedValue();
+	await f.manager.removeMediaAsset({ projectId: "a", id: "media-id" });
+	expect(f.manager.getAssets()).toEqual([]);
+	expect(f.removed).toHaveLength(1);
+});
+
+test("a delayed removal cannot mutate a newer project session", async () => {
+	const f = deletionHarness(),
+		pending = deferred();
+	const deleting = spyOn(storageService, "deleteMediaAsset").mockReturnValue(
+		pending.promise,
+	);
+	restores.push(() => deleting.mockRestore());
+	const removal = f.manager
+		.removeMediaAsset({ projectId: "a", id: "media-id" })
+		.catch((error: Error) => error);
+	expect(f.manager.getIsRemovingMedia()).toBe(true);
+	f.switchProject();
+	pending.resolve();
+	expect(((await removal) as Error).name).toBe("AbortError");
+	expect(f.manager.getIsRemovingMedia()).toBe(false);
+	expect(f.manager.getAssets()).toHaveLength(1);
+	expect(f.removed).toEqual([]);
+});
+
+test("removing media is rejected while export owns the original", async () => {
+	const f = deletionHarness();
+	f.setExporting();
+	const deleting = spyOn(
+		storageService,
+		"deleteMediaAsset",
+	).mockResolvedValue();
+	restores.push(() => deleting.mockRestore());
+	await expect(
+		f.manager.removeMediaAsset({ projectId: "a", id: "media-id" }),
+	).rejects.toThrow("export");
+	expect(deleting).not.toHaveBeenCalled();
+	expect(f.manager.getAssets()).toHaveLength(1);
+});
+
+test("media labels publish after metadata commit and failure leaves the old label", async () => {
+	const { manager } = harness();
+	manager.setAssets({ assets: [{ ...asset, id: "label-asset" }] });
+	const updating = spyOn(
+		storageService,
+		"updateMediaMetadata",
+	).mockRejectedValue(new Error("metadata aborted"));
+	const originalWrite = spyOn(storageService, "saveMediaAsset");
+	restores.push(
+		() => updating.mockRestore(),
+		() => originalWrite.mockRestore(),
+	);
+	await expect(
+		manager.updateMediaAsset({
+			projectId: "a",
+			id: "label-asset",
+			updates: { label: "new" },
+		}),
+	).rejects.toThrow("metadata aborted");
+	expect(manager.getAssets()[0].label).toBeUndefined();
+	expect(originalWrite).not.toHaveBeenCalled();
+	updating.mockResolvedValue({ name: "image.png", label: "new" });
+	await manager.updateMediaAsset({
+		projectId: "a",
+		id: "label-asset",
+		updates: { label: "new" },
+	});
+	expect(manager.getAssets()[0].label).toBe("new");
+});
+test("a metadata update from an older project cannot overwrite the next session", async () => {
+	const { manager, switchProject } = harness();
+	manager.setAssets({ assets: [{ ...asset, id: "same" }] });
+	let finish!: (value: { name: string; label: string }) => void;
+	const pending = new Promise<{ name: string; label: string }>((resolve) => {
+		finish = resolve;
+	});
+	const updating = spyOn(storageService, "updateMediaMetadata").mockReturnValue(
+		pending,
+	);
+	restores.push(() => updating.mockRestore());
+	const update = manager
+		.updateMediaAsset({ projectId: "a", id: "same", updates: { label: "old" } })
+		.catch((error: Error) => error);
+	switchProject("b");
+	manager.setAssets({ assets: [{ ...asset, id: "same", label: "current" }] });
+	finish({ name: "image.png", label: "old" });
+	expect(((await update) as Error).name).toBe("AbortError");
+	expect(manager.getAssets()[0].label).toBe("current");
+});

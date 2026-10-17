@@ -75,6 +75,46 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 		);
 	}
 
+	/** Synchronous read/modify/write in one transaction, resolved only on commit. */
+	async update(key: string, change: (value: T) => T): Promise<T> {
+		const db = await this.getDB();
+		return new Promise<T>((resolve, reject) => {
+			let result: T;
+			let failure: unknown;
+			try {
+				const transaction = db.transaction([this.storeName], "readwrite");
+				transaction.oncomplete = () => {
+					db.close();
+					resolve(result);
+				};
+				transaction.onabort = () => {
+					db.close();
+					reject(
+						failure ??
+							transaction.error ??
+							new Error("Storage transaction aborted"),
+					);
+				};
+				const store = transaction.objectStore(this.storeName);
+				const request = store.get(key);
+				request.onsuccess = () => {
+					try {
+						if (request.result === undefined)
+							throw new Error("Stored record is missing");
+						result = change(request.result);
+						store.put({ ...result, id: key });
+					} catch (error) {
+						failure = error;
+						transaction.abort();
+					}
+				};
+			} catch (error) {
+				db.close();
+				reject(error);
+			}
+		});
+	}
+
 	async remove(key: string): Promise<void> {
 		await this.transact("readwrite", (store) => store.delete(key));
 	}

@@ -244,6 +244,7 @@ export class ProjectManager {
 	}
 
 	async export({ options }: { options: ExportOptions }): Promise<ExportResult> {
+		if (this.editor.media?.getIsRemovingMedia?.()) return { success: false, error: "Wait for media removal to finish before exporting" };
 		if (this.exportState.isExporting) return { success: false, error: "An export is already running" };
 		let finish!: () => void;
 		this.exportDone = new Promise<void>((resolve) => { finish = resolve; });

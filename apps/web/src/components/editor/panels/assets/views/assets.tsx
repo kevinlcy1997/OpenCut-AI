@@ -137,10 +137,14 @@ export function MediaView() {
 			return;
 		}
 
-		await editor.media.removeMediaAsset({
-			projectId: activeProject.metadata.id,
-			id,
-		});
+		try {
+			await editor.media.removeMediaAsset({
+				projectId: activeProject.metadata.id,
+				id,
+			});
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not remove media");
+		}
 	};
 
 	const handleSort = ({ key }: { key: MediaSortKey }) => {
@@ -388,12 +392,16 @@ function MediaItemList({
 	const handleSaveLabel = async () => {
 		if (!editingLabelId || !activeProject) return;
 		const trimmed = labelDraft.trim();
-		await editor.media.updateMediaAsset({
-			projectId: activeProject.metadata.id,
-			id: editingLabelId,
-			updates: { label: trimmed || undefined },
-		});
-		setEditingLabelId(null);
+		try {
+			await editor.media.updateMediaAsset({
+				projectId: activeProject.metadata.id,
+				id: editingLabelId,
+				updates: { label: trimmed || undefined },
+			});
+			setEditingLabelId(null);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not save the media label");
+		}
 	};
 
 	const handleLabelKeyDown = (e: React.KeyboardEvent) => {

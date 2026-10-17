@@ -320,6 +320,16 @@ class StorageService {
 		});
 	}
 
+	async updateMediaMetadata({ projectId, id, updates }: {
+		projectId: string; id: string; updates: Partial<Pick<MediaAsset, "label" | "name">>;
+	}): Promise<Pick<MediaAsset, "name" | "label">> {
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
+			const saved = await mediaMetadataAdapter.update(id, (metadata) => ({ ...metadata, ...updates }));
+			return { name: saved.name, label: saved.label };
+		});
+	}
+
 	async loadMediaAsset({
 		projectId,
 		id,
@@ -375,6 +385,8 @@ class StorageService {
 			width: metadata.width,
 			height: metadata.height,
 			duration: metadata.duration,
+			fps: metadata.fps,
+			label: metadata.label,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
 			proxy: metadata.proxy,

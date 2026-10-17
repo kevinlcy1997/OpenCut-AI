@@ -256,3 +256,16 @@ test("migration failure settles project loading and permits retry", async () => 
 	expect(listing).toHaveBeenCalledTimes(1);
 	expect(manager.getProjectListError()).toBeNull();
 });
+
+
+test("export cannot start while originals are being removed", async () => {
+	const renderer = { exportProject: async () => {throw new Error("must not run");} };
+	const exporting = spyOn(renderer, "exportProject");
+	const manager = new ProjectManager({media:{getIsRemovingMedia:()=>true},renderer} as unknown as EditorCore);
+	const result = await manager.export({options});
+	expect(result.success).toBe(false);
+	expect(result.error).toContain("media removal");
+	expect(exporting).not.toHaveBeenCalled();
+	expect(manager.getExportState().isExporting).toBe(false);
+	exporting.mockRestore();
+});
