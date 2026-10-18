@@ -15,7 +15,10 @@ import tempfile
 import uuid
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
+from starlette.datastructures import Headers, UploadFile
+from starlette.formparsers import MultiPartParser, MultiPartException
+from starlette.requests import ClientDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
@@ -249,19 +252,24 @@ async def validation_error(request: Request, error: RequestValidationError):
 app.add_middleware(CORSMiddleware, allow_origins=list(ORIGINS), allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 
 
-@app.middleware("http")
-async def authorize(request: Request, call_next):
-    if request.method == "OPTIONS" or request.url.path == "/health":
-        return await call_next(request)
-    origin = request.headers.get("origin")
-    if origin and origin not in ORIGINS:
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"detail": "Origin denied"}, status_code=403)
-    if not TOKEN or not secrets.compare_digest(request.headers.get("authorization", ""), f"Bearer {TOKEN}"):
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"detail": "Runtime token required"}, status_code=401)
-    return await call_next(request)
+class RuntimeTokenGuard:
+    """Authorize before body parsing without wrapping request streams in tasks."""
+    def __init__(self, app):
+        self.app = app
 
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] == "OPTIONS" or scope["path"] == "/health":
+            return await self.app(scope, receive, send)
+        headers = Headers(scope=scope)
+        origin = headers.get("origin")
+        if origin and origin not in ORIGINS:
+            return await JSONResponse({"detail": "Origin denied"}, status_code=403)(scope, receive, send)
+        if not TOKEN or not secrets.compare_digest(headers.get("authorization", ""), f"Bearer {TOKEN}"):
+            return await JSONResponse({"detail": "Runtime token required"}, status_code=401)(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+app.add_middleware(RuntimeTokenGuard)
 
 class UploadBodyLimit:
     """Bound multipart spool space before FastAPI parses the uploaded body."""
@@ -310,8 +318,29 @@ async def get_capabilities():
     return await capabilities()
 
 
-@app.post("/assets")
-async def upload(file: UploadFile = File(...)):
+@app.post("/assets", openapi_extra={"requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["file"], "properties": {"file": {"type": "string", "format": "binary"}}}}}}})
+async def upload(request: Request):
+    # Own the parser's files even when parsing never returns FormData. The
+    # pinned Starlette parser only closes its spools for MultiPartException;
+    # connection failures, cancellation and body-limit exceptions also need it.
+    parser = MultiPartParser(request.headers, request.stream(), max_files=1, max_fields=0)
+    try:
+        try:
+            form = await parser.parse()
+        except MultiPartException as error:
+            raise HTTPException(400, error.message) from error
+        except ClientDisconnect as error:
+            raise HTTPException(400, "Upload disconnected") from error
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "A single multipart file field named file is required")
+        return await save_upload(file)
+    finally:
+        for spool in parser._files_to_close_on_error:
+            spool.close()
+
+
+async def save_upload(file: UploadFile):
     asset_id = uuid.uuid4().hex
     path = STORE / asset_id
     size = 0

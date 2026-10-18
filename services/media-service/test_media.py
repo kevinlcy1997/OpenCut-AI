@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import httpx
 import tempfile
 from pathlib import Path
 import unittest
@@ -291,6 +292,54 @@ class UploadReservationTests(unittest.IsolatedAsyncioTestCase):
                 task.cancel()
                 with self.assertRaises(asyncio.CancelledError): await task
                 self.assertEqual(media.disk_usage(), 0)
+
+
+class InterruptedUploadTests(unittest.IsolatedAsyncioTestCase):
+    async def exercise_interruption(self, mode):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            opened = []
+            started = asyncio.Event()
+            factory = tempfile.SpooledTemporaryFile
+            def tracking_file(*args, **kwargs):
+                file = factory(*args, **kwargs)
+                opened.append(file)
+                return file
+            async def body():
+                yield b'--boundary\r\nContent-Disposition: form-data; name="file"; filename="clip.mp4"\r\nContent-Type: video/mp4\r\n\r\n' + b'x' * (2 * 1024**2)
+                started.set()
+                if mode == "limit":
+                    yield b'x' * (4 * 1024**2)
+                elif mode == "cancel":
+                    await asyncio.Event().wait()
+                else:
+                    raise media.ClientDisconnect()
+            with patch.multiple(media, STATE=root, STORE=root, TOKEN="test-secret", ASSET_LIMIT=4 * 1024**2, LIMIT=100 * 1024**2), patch("starlette.formparsers.SpooledTemporaryFile", side_effect=tracking_file):
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=media.app, raise_app_exceptions=False), base_url="http://localhost") as client:
+                    task = asyncio.create_task(client.post("/assets", headers={"Authorization": "Bearer test-secret", "Content-Type": "multipart/form-data; boundary=boundary"}, content=body()))
+                    if mode == "cancel":
+                        await asyncio.wait_for(started.wait(), 2)
+                        task.cancel()
+                        with self.assertRaises(asyncio.CancelledError): await task
+                    else:
+                        response = await task
+                        self.assertEqual(response.status_code, 413 if mode == "limit" else 400)
+                try:
+                    self.assertEqual(len(opened), 1)
+                    self.assertTrue(opened[0].closed, "Upload spool remained open after interrupted parsing")
+                    self.assertEqual(media.upload_spool_reserved_bytes, 0)
+                    self.assertEqual(list(root.iterdir()), [])
+                finally:
+                    for file in opened: file.close()
+
+    async def test_disconnect_closes_partial_spool(self):
+        await self.exercise_interruption("disconnect")
+
+    async def test_body_limit_closes_partial_spool(self):
+        await self.exercise_interruption("limit")
+
+    async def test_cancellation_closes_partial_spool(self):
+        await self.exercise_interruption("cancel")
 
 
 if __name__ == "__main__":
