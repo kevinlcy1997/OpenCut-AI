@@ -115,3 +115,9 @@ jobs:
         env:
           PYTHONPATH: services/media-service
         run: python -m unittest services/media-service/test_media.py
+      - name: Test image responsiveness, ownership and device selection
+        env:
+          PYTHONPATH: services/image-service
+          GENERATED_DIR: /tmp/opencut-test-generated
+          UPLOAD_DIR: /tmp/opencut-test-uploads
+        run: python -m unittest services/image-service/test_runtime.py services/image-service/test_device.py
