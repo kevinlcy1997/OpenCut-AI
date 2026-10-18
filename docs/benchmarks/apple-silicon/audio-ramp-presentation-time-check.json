@@ -1,0 +1,38 @@
+{
+  "samples": 177088,
+  "checks": [
+    {
+      "time_seconds": 0.5,
+      "expected": 0.375,
+      "measured": [
+        0.3756815493106842,
+        0.375302255153656
+      ]
+    },
+    {
+      "time_seconds": 1.5,
+      "expected": 0.625,
+      "measured": [
+        0.624987006187439,
+        0.6253089308738708
+      ]
+    },
+    {
+      "time_seconds": 2.5,
+      "expected": 0.75,
+      "measured": [
+        0.7498974800109863,
+        0.7507303357124329
+      ]
+    },
+    {
+      "time_seconds": 3.5,
+      "expected": 0.75,
+      "measured": [
+        0.749916672706604,
+        0.7504385113716125
+      ]
+    }
+  ],
+  "decode_filter": "aresample=async=1:first_pts=0"
+}

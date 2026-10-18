@@ -3,6 +3,7 @@ import { withBotId } from "botid/next/config";
 import { withContentCollections } from "@content-collections/next";
 
 const nextConfig: NextConfig = {
+	distDir: process.env.OPENCUT_NEXT_DIST_DIR || ".next",
 	turbopack: {
 		rules: {
 			"*.glsl": {

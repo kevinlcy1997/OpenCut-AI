@@ -1,0 +1,15 @@
+{
+  "project_id": "724bc97c-8ab3-4656-942b-d275518e0f34",
+  "fps": 30,
+  "timeline_duration_seconds": 1.0333333333333334,
+  "duration_times_fps": 31.000000000000004,
+  "previous_ceil_frame_count": 32,
+  "expected_frames": 31,
+  "encoded_frames": 31,
+  "encoded_video_duration_seconds": 1.033333,
+  "encoded_sha256": "b9fd0745092b66b02352914a413ca4b70f369a6cb639000f534eb6b70f464caf",
+  "passed": true,
+  "limitations": [
+    "One 30fps browser MP4 case; fractional-rate encoded exports and proxy timing remain unverified"
+  ]
+}

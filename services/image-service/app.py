@@ -7,6 +7,7 @@ Runs on port 8423.
 """
 
 import asyncio
+from functools import wraps
 import logging
 import importlib.util
 import os
@@ -14,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import threading
 import uuid
 from pathlib import Path
 from device import select_device
@@ -154,6 +156,14 @@ class ImageGenParams(BaseModel):
 # Diffusion service singleton
 # ---------------------------------------------------------------------------
 
+def _model_operation(operation):
+    @wraps(operation)
+    def run(self, *args, **kwargs):
+        with self._model_lock:
+            return operation(self, *args, **kwargs)
+    return run
+
+
 class DiffusionService:
     """Image generation via diffusion models with multi-model support."""
 
@@ -161,6 +171,10 @@ class DiffusionService:
     _pipeline = None
     _model_name: str = ""
     _device: str = "cpu"
+    # Loading, inference and unloading share one lock, including non-native
+    # deployments. Moving blocking work off the event loop must not introduce
+    # concurrent pipeline mutation or unload a model still in use.
+    _model_lock = threading.RLock()
 
     def __new__(cls) -> "DiffusionService":
         if cls._instance is None:
@@ -183,6 +197,7 @@ class DiffusionService:
     def is_installed(self) -> bool:
         return importlib.util.find_spec("torch") is not None and importlib.util.find_spec("diffusers") is not None
 
+    @_model_operation
     def load_model(self, model_name: str | None = None) -> dict:
         """Load a diffusion model by name. Returns status dict."""
         target = _resolve_model_name(model_name or DIFFUSION_MODEL)
@@ -217,14 +232,15 @@ class DiffusionService:
 
             logger.info("Loading diffusion model '%s' on %s...", target, device)
 
-            self._pipeline = AutoPipelineForText2Image.from_pretrained(
+            pipeline = AutoPipelineForText2Image.from_pretrained(
                 target,
                 torch_dtype=dtype,
                 variant="fp16" if has_cuda else None,
             )
-            self._pipeline = self._pipeline.to(device)
+            pipeline = pipeline.to(device)
             if IMAGE_ATTENTION_SLICING == "on" or (IMAGE_ATTENTION_SLICING == "auto" and device == "mps"):
-                self._pipeline.enable_attention_slicing()
+                pipeline.enable_attention_slicing()
+            self._pipeline = pipeline
             self._model_name = target
             self._device = device
 
@@ -234,6 +250,7 @@ class DiffusionService:
             logger.exception("Failed to load diffusion model '%s'", target)
             return {"status": "error", "error": str(e)}
 
+    @_model_operation
     def unload(self) -> None:
         if self._pipeline is not None:
             previous_device = self._device
@@ -259,6 +276,17 @@ class DiffusionService:
         height: int = 512,
         steps: int = 20,
         guidance_scale: float = 7.5,
+        seed: int | None = None,
+    ) -> str:
+        return await asyncio.to_thread(
+            self._generate_sync, prompt, negative_prompt, width, height,
+            steps, guidance_scale, seed,
+        )
+
+    @_model_operation
+    def _generate_sync(
+        self, prompt: str, negative_prompt: str = "", width: int = 512,
+        height: int = 512, steps: int = 20, guidance_scale: float = 7.5,
         seed: int | None = None,
     ) -> str:
         if not self.is_loaded:
@@ -705,7 +733,7 @@ async def remove_bg_video_job(job_id: str):
 
 
 @app.post("/load")
-async def load_model(model_name: str | None = None):
+def load_model(model_name: str | None = None):
     """Load an image generation model by name. Downloads on first use."""
     result = diffusion_service.load_model(model_name)
 
@@ -752,20 +780,21 @@ async def test_model():
 
 
 @app.post("/unload")
-async def unload_model():
+def unload_model():
     """Unload the image generation model and free memory."""
     diffusion_service.unload()
     return {"status": "success", "message": "Image model unloaded."}
 
 
 @app.post("/backend")
-async def set_device(device: str):
+def set_device(device: str):
     global IMAGE_DEVICE
     import torch
     try:
         selected = select_device(torch, device)
     except (ValueError, RuntimeError) as error:
         raise HTTPException(422, str(error))
-    diffusion_service.unload()
-    IMAGE_DEVICE = device
+    with diffusion_service._model_lock:
+        diffusion_service.unload()
+        IMAGE_DEVICE = device
     return {"device": selected, "requested_device": device}

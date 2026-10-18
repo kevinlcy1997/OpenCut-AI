@@ -1,0 +1,706 @@
+{
+  "checks": [
+    {
+      "port": 8420,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "local-client",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "localhost-editor",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "hostile-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "null-origin",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "cross-site-resource",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "host-rebinding",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "trusted-referrer",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8420,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8421,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8422,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8423,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8424,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8425,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8426,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8427,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 8428,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "malformed-host",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "port": 11435,
+      "case": "malformed-referrer",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "scope": "Native browser Origin/Host boundary; not authentication against local processes"
+}

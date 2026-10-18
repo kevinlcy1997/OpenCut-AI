@@ -27,6 +27,9 @@ interface RuntimeStatus {
 		queued?: number;
 		estimated_mb?: number;
 		measured_process_rss_mb?: number | null;
+		measured_mps_tensor_mb?: number;
+		measured_mps_driver_mb?: number;
+		mps_memory_measured_at?: number;
 		reserved_mb?: number;
 		busy?: boolean;
 		queue_entries?: Array<{ id: string; service: string; model?: string }>;
@@ -68,7 +71,31 @@ export function NativeRuntimeSettings() {
 			{status.coordination.measured_process_rss_mb != null && (
 				<p className="text-muted-foreground">
 					Measured process memory:{" "}
-					{Math.round(status.coordination.measured_process_rss_mb)} MB. This does not measure total GPU allocation.
+					{Math.round(status.coordination.measured_process_rss_mb)} MB. This
+					does not measure total GPU allocation.
+				</p>
+			)}
+			{status.coordination.measured_mps_tensor_mb != null && (
+				<p className="text-muted-foreground">
+					Measured Metal tensors:{" "}
+					{Math.round(status.coordination.measured_mps_tensor_mb)} MB
+					{status.coordination.measured_mps_driver_mb != null && (
+						<>
+							; driver including caches:{" "}
+							{Math.round(status.coordination.measured_mps_driver_mb)} MB
+						</>
+					)}
+					. These figures overlap process memory and should not be added.
+					{status.coordination.mps_memory_measured_at != null && (
+						<>
+							{" "}
+							Last sampled{" "}
+							{new Date(
+								status.coordination.mps_memory_measured_at * 1000,
+							).toLocaleTimeString()}
+							.
+						</>
+					)}
 				</p>
 			)}
 			<label className="flex items-center justify-between gap-2">

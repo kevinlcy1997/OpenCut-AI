@@ -1,10 +1,18 @@
+import {
+	sourceOffsetAt,
+	timelineOffsetAt,
+	scheduleClipParameter,
+} from "@/lib/media/clip-automation";
 import type { EditorCore } from "@/core";
 import type { AudioClipSource } from "@/lib/media/audio";
 import { createAudioContext, collectAudioClips } from "@/lib/media/audio";
 import {
 	getAudioEffectDefinition,
+	prepareAudioEffects,
+	disposeAudioEffectNodes,
 	type TrackAudioEffect,
 } from "@/lib/audio/audio-effects";
+import { toast } from "sonner";
 import {
 	ALL_FORMATS,
 	AudioBufferSink,
@@ -17,6 +25,7 @@ export class AudioManager {
 	private audioContext: AudioContext | null = null;
 	private masterGain: GainNode | null = null;
 	private masterAnalyser: AnalyserNode | null = null;
+	private effectNodes: AudioNode[] = [];
 	private trackNodes = new Map<
 		string,
 		{
@@ -33,6 +42,8 @@ export class AudioManager {
 	private clips: AudioClipSource[] = [];
 	private sinks = new Map<string, AudioBufferSink>();
 	private inputs = new Map<string, Input>();
+	private sinkGeneration = 0;
+	private pendingSinks = new Map<string, Promise<AudioBufferSink | null>>();
 	private activeClipIds = new Set<string>();
 	private clipIterators = new Map<
 		string,
@@ -40,6 +51,7 @@ export class AudioManager {
 	>();
 	private queuedSources = new Set<AudioBufferSourceNode>();
 	private playbackSessionId = 0;
+	private catchupWaiters = new Set<() => void>();
 	private lastIsPlaying = false;
 	private lastVolume = 1;
 	private playbackLatencyCompensationSeconds = 0;
@@ -156,11 +168,9 @@ export class AudioManager {
 		const track = tracks.find((t) => t.id === trackId);
 		const trackVolume =
 			(track && ("volume" in track ? track.volume : undefined)) ?? 1;
-		const trackPan =
-			(track && ("pan" in track ? track.pan : undefined)) ?? 0;
+		const trackPan = (track && ("pan" in track ? track.pan : undefined)) ?? 0;
 		const audioEffects =
-			(track && "audioEffects" in track ? track.audioEffects : undefined) ??
-			[];
+			(track && "audioEffects" in track ? track.audioEffects : undefined) ?? [];
 
 		const gain = ctx.createGain();
 		gain.gain.value = trackVolume;
@@ -211,6 +221,19 @@ export class AudioManager {
 			if (!definition) continue;
 
 			const nodes = definition.createNodes(ctx, effect.params);
+			this.effectNodes.push(...nodes);
+			const sessionId = this.playbackSessionId;
+			for (const node of nodes) {
+				if (!("port" in node)) continue;
+				(node as AudioWorkletNode).onprocessorerror = () => {
+					if (sessionId !== this.playbackSessionId) return;
+					this.editor.playback.pause();
+					toast.error("Audio effect processing failed", {
+						description:
+							"Playback stopped. Try again or disable the affected effect.",
+					});
+				};
+			}
 			if (nodes.length === 0) continue;
 
 			previousOutput.connect(nodes[0]);
@@ -220,6 +243,8 @@ export class AudioManager {
 	}
 
 	private rebuildTrackNodes(): void {
+		disposeAudioEffectNodes(this.effectNodes);
+		this.effectNodes = [];
 		for (const [, nodes] of this.trackNodes) {
 			try {
 				nodes.gain.disconnect();
@@ -288,9 +313,7 @@ export class AudioManager {
 		const trackNodes = this.getOrCreateTrackNodes(trackWithClip.id);
 		if (!trackNodes) return this.masterGain;
 
-		const isSoloMode = tracks.some(
-			(t) => "solo" in t && t.solo,
-		);
+		const isSoloMode = tracks.some((t) => "solo" in t && t.solo);
 		const trackSolo = "solo" in trackWithClip ? trackWithClip.solo : false;
 
 		if (isSoloMode && !trackSolo) {
@@ -315,8 +338,7 @@ export class AudioManager {
 		if (!audioContext) return;
 
 		this.stopPlayback();
-		this.rebuildTrackNodes();
-		this.playbackSessionId++;
+		const sessionId = this.playbackSessionId;
 		this.playbackLatencyCompensationSeconds = 0;
 
 		const tracks = this.editor.timeline.getTracks();
@@ -329,8 +351,31 @@ export class AudioManager {
 			await audioContext.resume();
 		}
 
-		this.clips = await collectAudioClips({ tracks, mediaAssets });
-		if (!this.editor.playback.getIsPlaying()) return;
+		if (sessionId !== this.playbackSessionId) return;
+		try {
+			await prepareAudioEffects(
+				audioContext,
+				tracks.flatMap((track) =>
+					"audioEffects" in track ? (track.audioEffects ?? []) : [],
+				),
+			);
+		} catch (error) {
+			if (sessionId !== this.playbackSessionId) return;
+			this.editor.playback.pause();
+			toast.error("Could not prepare audio effects", {
+				description:
+					error instanceof Error ? error.message : "Try playback again.",
+			});
+			return;
+		}
+		if (sessionId !== this.playbackSessionId) return;
+		const clips = await collectAudioClips({ tracks, mediaAssets });
+		if (
+			sessionId !== this.playbackSessionId ||
+			!this.editor.playback.getIsPlaying()
+		)
+			return;
+		this.clips = clips;
 
 		this.playbackStartTime = time;
 		this.playbackStartContextTime = audioContext.currentTime;
@@ -368,6 +413,8 @@ export class AudioManager {
 	}
 
 	private stopPlayback(): void {
+		this.playbackSessionId++;
+		for (const finish of this.catchupWaiters) finish();
 		if (this.scheduleTimer && typeof window !== "undefined") {
 			window.clearInterval(this.scheduleTimer);
 		}
@@ -386,6 +433,7 @@ export class AudioManager {
 			source.disconnect();
 		}
 		this.queuedSources.clear();
+		this.rebuildTrackNodes();
 	}
 
 	private async runClipIterator({
@@ -415,8 +463,10 @@ export class AudioManager {
 		if (iteratorStartTime >= clipEnd) {
 			return;
 		}
+		const rate = clip.playbackRate ?? 1;
 		const sourceStartTime =
-			clip.trimStart + (iteratorStartTime - clip.startTime);
+			clip.trimStart +
+			sourceOffsetAt(iteratorStartTime - clip.startTime, rate, clip.animations);
 
 		let iterator: AsyncGenerator<WrappedAudioBuffer, void, unknown>;
 		try {
@@ -425,94 +475,91 @@ export class AudioManager {
 			return; // Sink may have been disposed
 		}
 		this.clipIterators.set(clip.id, iterator);
-		let consecutiveDroppedBufferCount = 0;
 
 		try {
 			for await (const { buffer, timestamp } of iterator) {
 				if (!this.editor.playback.getIsPlaying()) return;
 				if (sessionId !== this.playbackSessionId) return;
 
-				const timelineTime = clip.startTime + (timestamp - clip.trimStart);
+				const timelineTime =
+					clip.startTime +
+					timelineOffsetAt(
+						timestamp - clip.trimStart,
+						clip.duration,
+						rate,
+						clip.animations,
+					);
 				if (timelineTime >= clipEnd) break;
-
+				const contextBase =
+					this.playbackStartContextTime +
+					this.playbackLatencyCompensationSeconds -
+					this.playbackStartTime;
+				const startTimestamp = Math.max(
+					audioContext.currentTime,
+					contextBase + timelineTime,
+					contextBase + iteratorStartTime,
+				);
+				const localStart = Math.max(
+					0,
+					startTimestamp - contextBase - clip.startTime,
+				);
+				if (localStart >= clip.duration) break;
+				const offset = Math.max(
+					0,
+					clip.trimStart +
+						sourceOffsetAt(localStart, rate, clip.animations) -
+						timestamp,
+				);
+				if (offset >= buffer.duration) continue;
 				const node = audioContext.createBufferSource();
 				node.buffer = buffer;
-
-				// Apply per-clip playback rate (speed control)
-				const clipRate = (clip as unknown as { playbackRate?: number }).playbackRate;
-				if (typeof clipRate === "number" && clipRate !== 1.0) {
-					node.playbackRate.value = clipRate;
-				}
-
-				const destinationNode = this.getTrackDestination(clip.id);
-
-				const clipVolume = clip.volume ?? 1;
-				if (clipVolume < 1) {
-					const clipGain = audioContext.createGain();
-					clipGain.gain.value = clipVolume;
-					node.connect(clipGain);
-					clipGain.connect(destinationNode);
-				} else {
-					node.connect(destinationNode);
-				}
-
-				const startTimestamp =
-					this.playbackStartContextTime +
-					this.playbackLatencyCompensationSeconds +
-					(timelineTime - this.playbackStartTime);
-
-				if (startTimestamp >= audioContext.currentTime) {
-					node.start(startTimestamp);
-					consecutiveDroppedBufferCount = 0;
-				} else {
-					const offset = audioContext.currentTime - startTimestamp;
-					if (offset < buffer.duration) {
-						node.start(audioContext.currentTime, offset);
-						consecutiveDroppedBufferCount = 0;
-					} else {
-						consecutiveDroppedBufferCount += 1;
-						if (consecutiveDroppedBufferCount >= 5) {
-							const nextCompensationSeconds = Math.max(
-								this.playbackLatencyCompensationSeconds,
-								Math.min(0.25, offset + 0.01),
-							);
-							if (
-								nextCompensationSeconds >
-								this.playbackLatencyCompensationSeconds + 0.001
-							) {
-								this.playbackLatencyCompensationSeconds =
-									nextCompensationSeconds;
-							}
-							const resyncStartTime = this.getPlaybackTime();
-							this.clipIterators.delete(clip.id);
-							void this.runClipIterator({
-								clip,
-								startTime: resyncStartTime,
-								sessionId,
-							});
-							return;
-						}
-						continue;
-					}
-				}
-
+				const clipGain = audioContext.createGain();
+				scheduleClipParameter(
+					node.playbackRate,
+					"playbackRate",
+					rate,
+					clip.animations,
+					localStart,
+					clip.duration,
+					startTimestamp,
+				);
+				scheduleClipParameter(
+					clipGain.gain,
+					"volume",
+					clip.volume ?? 1,
+					clip.animations,
+					localStart,
+					clip.duration,
+					startTimestamp,
+				);
+				node.connect(clipGain);
+				clipGain.connect(this.getTrackDestination(clip.id));
+				node.start(startTimestamp, offset);
+				node.stop(contextBase + clipEnd);
 				this.queuedSources.add(node);
 				node.addEventListener("ended", () => {
 					node.disconnect();
+					clipGain.disconnect();
 					this.queuedSources.delete(node);
 				});
 
 				const aheadTime = timelineTime - this.getPlaybackTime();
 				if (aheadTime >= 1) {
-					await this.waitUntilCaughtUp({ timelineTime, targetAhead: 1 });
+					await this.waitUntilCaughtUp({
+						timelineTime,
+						targetAhead: 1,
+						sessionId,
+					});
 					if (sessionId !== this.playbackSessionId) return;
 				}
 			}
 		} catch {
 			// Input may have been disposed (e.g., track deleted during playback)
+		} finally {
+			if (this.clipIterators.get(clip.id) === iterator)
+				this.clipIterators.delete(clip.id);
 		}
 
-		this.clipIterators.delete(clip.id);
 		// don't remove from activeClipIds - prevents scheduler from restarting this clip
 		// the set is cleared on stopPlayback anyway
 	}
@@ -520,28 +567,38 @@ export class AudioManager {
 	private waitUntilCaughtUp({
 		timelineTime,
 		targetAhead,
+		sessionId,
 	}: {
 		timelineTime: number;
 		targetAhead: number;
+		sessionId: number;
 	}): Promise<void> {
+		if (
+			sessionId !== this.playbackSessionId ||
+			!this.editor.playback.getIsPlaying()
+		)
+			return Promise.resolve();
 		return new Promise((resolve) => {
+			const finish = () => {
+				clearInterval(checkInterval);
+				this.catchupWaiters.delete(finish);
+				resolve();
+			};
 			const checkInterval = setInterval(() => {
-				if (!this.editor.playback.getIsPlaying()) {
-					clearInterval(checkInterval);
-					resolve();
-					return;
-				}
-
-				const playbackTime = this.getPlaybackTime();
-				if (timelineTime - playbackTime < targetAhead) {
-					clearInterval(checkInterval);
-					resolve();
-				}
+				if (
+					sessionId !== this.playbackSessionId ||
+					!this.editor.playback.getIsPlaying() ||
+					timelineTime - this.getPlaybackTime() < targetAhead
+				)
+					finish();
 			}, 100);
+			this.catchupWaiters.add(finish);
 		});
 	}
 
 	private disposeSinks(): void {
+		this.sinkGeneration++;
+		this.pendingSinks.clear();
 		for (const iterator of this.clipIterators.values()) {
 			void iterator.return();
 		}
@@ -564,32 +621,53 @@ export class AudioManager {
 		this.trackNodes.clear();
 	}
 
-	private async getAudioSink({
+	private getAudioSink({
 		clip,
 	}: {
 		clip: AudioClipSource;
 	}): Promise<AudioBufferSink | null> {
 		const existingSink = this.sinks.get(clip.sourceKey);
-		if (existingSink) return existingSink;
+		if (existingSink) return Promise.resolve(existingSink);
+		const pending = this.pendingSinks.get(clip.sourceKey);
+		if (pending) return pending;
+		const generation = this.sinkGeneration;
+		const loading = this.openAudioSink(clip, generation).finally(() => {
+			if (this.pendingSinks.get(clip.sourceKey) === loading)
+				this.pendingSinks.delete(clip.sourceKey);
+		});
+		this.pendingSinks.set(clip.sourceKey, loading);
+		return loading;
+	}
 
+	private async openAudioSink(
+		clip: AudioClipSource,
+		generation: number,
+	): Promise<AudioBufferSink | null> {
+		let input: Input | undefined;
+		let retained = false;
 		try {
-			const input = new Input({
+			input = new Input({
 				source: new BlobSource(clip.file),
 				formats: ALL_FORMATS,
 			});
-			const audioTrack = await input.getPrimaryAudioTrack();
-			if (!audioTrack) {
-				input.dispose();
-				return null;
-			}
-
-			const sink = new AudioBufferSink(audioTrack);
+			// Register before awaiting metadata so project changes can cancel reads.
 			this.inputs.set(clip.sourceKey, input);
+			const audioTrack = await input.getPrimaryAudioTrack();
+			if (!audioTrack || generation !== this.sinkGeneration) return null;
+			const sink = new AudioBufferSink(audioTrack);
 			this.sinks.set(clip.sourceKey, sink);
+			retained = true;
 			return sink;
 		} catch (error) {
-			console.warn("Failed to initialize audio sink:", error);
+			if (generation === this.sinkGeneration)
+				console.warn("Failed to initialize audio sink:", error);
 			return null;
+		} finally {
+			if (input && !retained) {
+				input.dispose();
+				if (this.inputs.get(clip.sourceKey) === input)
+					this.inputs.delete(clip.sourceKey);
+			}
 		}
 	}
 }

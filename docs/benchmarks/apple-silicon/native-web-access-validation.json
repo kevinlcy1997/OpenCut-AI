@@ -1,0 +1,200 @@
+{
+  "checked_at": "2026-10-17T17:10:42.933696+00:00",
+  "base": "http://127.0.0.1:3000",
+  "scope": "native website page and API HTTP boundary; no project mutations; not a full security audit",
+  "passed": true,
+  "checks": [
+    {
+      "case": "local probe",
+      "path": "/",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "trusted origin",
+      "path": "/",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "bookmark",
+      "path": "/",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "external link",
+      "path": "/",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "rebound host",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "wrong port",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "hostile origin",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "null origin",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "cross-site resource",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "other local site",
+      "path": "/",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "hostile form",
+      "path": "/",
+      "method": "POST",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "originless form",
+      "path": "/",
+      "method": "POST",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "local probe",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "trusted origin",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "bookmark",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "external link",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "case": "rebound host",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "wrong port",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "hostile origin",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "null origin",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "cross-site resource",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "other local site",
+      "path": "/api/health",
+      "method": "GET",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "hostile form",
+      "path": "/api/health",
+      "method": "POST",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "case": "originless form",
+      "path": "/api/health",
+      "method": "POST",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    }
+  ]
+}

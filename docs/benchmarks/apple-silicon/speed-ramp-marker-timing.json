@@ -1,0 +1,58 @@
+{
+  "outside_marker_energy_fraction": [
+    0.0,
+    0.0
+  ],
+  "source_sha256": "dfa9fcb8b14086a8e848cb8bf518ff2fab0ea3998cff1a5d4c6c40fd219a579c",
+  "encoded_sha256": "695f8604948d5539af4c55fe686d67e29a2108c00d0687d8bdb12d18355da304",
+  "method": "per-channel marker energy centroid on presentation time",
+  "curve": "rate(t)=1+t; source(t)=t+t*t/2; 0<=t<=2",
+  "markers": [
+    {
+      "source_marker_seconds": 0.25,
+      "expected_window_center_seconds": 0.23693168768529826,
+      "energy_centroid_offset_ms": [
+        0.3072622672596059,
+        0.3068122889567926
+      ]
+    },
+    {
+      "source_marker_seconds": 1.25,
+      "expected_window_center_seconds": 0.8788294228055935,
+      "energy_centroid_offset_ms": [
+        0.6180906010189169,
+        0.6714948073207605
+      ]
+    },
+    {
+      "source_marker_seconds": 1.99,
+      "expected_window_center_seconds": 1.2383029285599392,
+      "energy_centroid_offset_ms": [
+        0.7073836233963959,
+        0.8873147505825685
+      ]
+    },
+    {
+      "source_marker_seconds": 2.5,
+      "expected_window_center_seconds": 1.4556058315617348,
+      "energy_centroid_offset_ms": [
+        0.8901268488847869,
+        0.859042255578979
+      ]
+    },
+    {
+      "source_marker_seconds": 3.75,
+      "expected_window_center_seconds": 1.920616373302047,
+      "energy_centroid_offset_ms": [
+        1.054998298937182,
+        0.9430770603282568
+      ]
+    }
+  ],
+  "marker_timing_passed": true,
+  "limitations": [
+    "Fixed two-second linear speed-ramp fixture only",
+    "Energy timing only; not waveform fidelity, pitch, preview alignment or arbitrary curve parity",
+    "Existing raw-waveform correlation report was inconclusive and is not replaced by a correlation pass"
+  ]
+}

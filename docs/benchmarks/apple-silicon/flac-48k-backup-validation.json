@@ -1,0 +1,21 @@
+{
+  "project_id": "b936b5d9-5a9d-4b58-ad65-5374fb8cf15d",
+  "backup_sha256": "51cd5d4e103fcc3615888fbe808533671ef2be714c05977f9422bfdf77aa6b18",
+  "original_flac_sha256": "60d8162afad3ebbefd2a9e46868f9941e61c9c07afb3947fa031413103c9a7df",
+  "original_bytes_preserved": true,
+  "manifest_sha256_verified": true,
+  "timeline_duration": 4,
+  "export": {
+    "video_codec": "h264",
+    "frames": 120,
+    "fps": 30,
+    "duration": 4,
+    "audio_codec": "aac",
+    "sample_rate": 44100,
+    "channels": 2
+  },
+  "limitations": [
+    "Fixture restored through backup; this does not validate the regular import metadata detector",
+    "Timing and original-byte preservation, not perceptual codec quality or upgrade/rollback acceptance"
+  ]
+}

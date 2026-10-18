@@ -1,10 +1,27 @@
 """Mixed native AI/media soak; blocked operations are reported, never counted as passes."""
 import argparse
 import json
+import math
 from pathlib import Path
 import time
 import httpx
 import psutil
+
+
+def evaluate_native_soak(report, requested_minutes):
+    """Native-only evidence cannot approve the complete editing-session gate."""
+    operations = report.get("operations", [])
+    required = {"transcribe", "llm", "image", "media"}
+    criteria = {
+        "duration": requested_minutes >= 30 and report.get("elapsed_seconds", 0) >= 1800,
+        "all_workloads_executed": required <= {item["operation"] for item in operations},
+        "all_operations_passed": bool(operations) and all(item["status"] == "passed" for item in operations),
+        "swap_growth": report.get("swap_growth_mb", float("inf")) <= 1024,
+    }
+    return {"scope": "native services only; no browser editing workload",
+            "native_checks": criteria, "native_checks_passed": all(criteria.values()),
+            "full_stability_acceptance_passed": False,
+            "unverified": ["30-minute browser editing/playback/export with AI", "browser and GPU memory growth", "swap measured after a defined warm-up", "sustained allocation growth across the full session"]}
 
 
 def main():
@@ -15,6 +32,8 @@ def main():
     parser.add_argument("--llm-model", default="qwen2.5:0.5b")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if not math.isfinite(args.minutes) or args.minutes <= 0:
+        parser.error("--minutes must be a finite positive number")
     args.speech = args.speech.resolve(strict=True)
     args.video = args.video.resolve(strict=True)
     root = Path(__file__).resolve().parents[2]
@@ -77,9 +96,12 @@ def main():
             client.delete(f"{media}/assets/{asset}", headers=headers)
             client.post("http://127.0.0.1:11435/unload")
     report["complete"] = True
-    report["passed"] = args.minutes >= 30 and report["elapsed_seconds"] >= 1800 and all(operation["status"] == "passed" for operation in operations) and report["swap_growth_mb"] <= 1024
+    report.update(evaluate_native_soak(report, args.minutes))
+    # Retain the legacy field conservatively: this script cannot approve the
+    # complete editing/AI acceptance gate, even when native checks all pass.
+    report["passed"] = report["full_stability_acceptance_passed"]
     args.output.write_text(json.dumps(report, indent=2))
-    print(f"Soak complete: passed={report['passed']}")
+    print(f"Native checks: {report['native_checks_passed']}; full editing stability acceptance: {report['passed']}")
 
 
 if __name__ == "__main__": main()

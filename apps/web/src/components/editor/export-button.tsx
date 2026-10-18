@@ -92,7 +92,7 @@ function ExportPopover({
 }) {
 	const editor = useEditor();
 	const activeProject = editor.project.getActive();
-	const { isExporting, progress, result: exportResult } =
+	const { isExporting, cancelRequested, progress, result: exportResult } =
 		editor.project.getExportState();
 	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 	const [format, setFormat] = useState<ExportFormat>(
@@ -340,8 +340,9 @@ function ExportPopover({
 									variant="outline"
 									className="w-full rounded-md"
 									onClick={handleCancel}
+									disabled={cancelRequested}
 								>
-									Cancel
+									{cancelRequested ? "Cancelling…" : "Cancel"}
 								</Button>
 							</div>
 						)}

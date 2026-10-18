@@ -62,3 +62,33 @@ The ordered draft PR stack contains native runtime, MLX transcription, memory co
 Checks cover backend selection, VAD/silence/clock restoration, hardware/weight precision gating, process ownership, environment preservation, model switching and persisted selection, FIFO cancellation/full queue/crash recovery, low-memory rejection, native upload authorization, unsupported timeline fields, encoder cancellation/failure and stale media-gate rejection. 38 Python tests, 107 Bun tests and TypeScript checks passed. A final real native two-cut/trim/scaling smoke check produced 60 frames and 2.000s duration. CPU/CUDA device selection is tested with mocks; actual CUDA inference cannot be validated on this Mac.
 
 Remaining release blockers: the 2× image target, native proxy quality/speed, native export speed, NLLB inference under a fitting memory budget, model-specific TTS/diarization MPS validation, broader CLIP/translation quality comparisons, and full image-inclusive sustained-session acceptance. Do not advertise those targets as achieved.
+
+
+### Presentation-time audio recheck
+
+The local-production audit found that raw FFmpeg PCM extraction discarded the initial audio presentation offset. The validator now uses `aresample=async=1:first_pts=0`. Rechecking the existing 4K benchmark artifacts measured 0ms browser/native audio offset (previous raw-sample measurement: 20ms). Frame count, duration and SSIM are unchanged; native speedup is still 0.943x, so automatic export remains disabled. These historical artifacts predate subsequent audio mixer changes and do not validate the whole latest export implementation.
+
+A separate current-production test generated deterministic nonperiodic stereo markers, split at two seconds and exported through the normal website. Both channels and all five markers, including the marker crossing the cut, measured 0ms offset. Source/encoded hashes and measurements are in the workspace `outputs/audio-split-alignment.json`. This corrects the earlier inferred ~23ms volume-ramp advance, which was a measurement artifact. Additional codec/sample-rate/speed/effects parity remains pending.
+
+
+### Linear audio speed-ramp timing fixture
+
+The local production website exported a two-second audio timeline using the deterministic stereo source from `prepare_audio_markers.py`, with linear playback-rate keys `(0s, 1x)` and `(2s, 3x)`. The independent reference maps timeline time to source time as `s=t+t*t/2`. Five source markers map into the output; energy-centroid timing is checked separately on both channels within 100ms windows, with a 20ms timing threshold and less than 1% energy outside those windows. This measures marker timing, not waveform or pitch fidelity.
+
+Run `PYTHONPATH=scripts/mac python -m unittest scripts/mac/test_validate_speed_ramp.py`, then `python scripts/mac/validate_speed_ramp.py --source stereo-markers-4s.wav --encoded ramp-export.mp4 --report ramp-timing.json` with NumPy and FFmpeg available. Regenerate the source with `python scripts/mac/prepare_audio_markers.py --output stereo-markers-4s.wav`. The fixture source SHA is recorded in the report. The project uses one uploaded audio clip at start 0s, duration 2s, trimStart/trimEnd 0, sourceDuration 4s, gain 1, pan 0, and a `playbackRate` number animation channel with linear keys at those times; project rate is 30fps.
+
+The observed MP4 has 60 video frames over 2s. All ten per-channel marker measurements are within 1.055ms. The raw noise-waveform correlation validator was inconclusive due to rate/resampling phase differences and remains recorded as a failure in its own report. No automatic acceleration gate was enabled by this result.
+
+
+### Mixed-media export smoke fixture
+
+The four-second 320x180/30fps fixture uses the first two seconds of `editor-smoke-8s.mp4` (audio muted), then a solid red 320x180 PNG at 50% centered scale for two seconds. A separate four-second stereo track uses `stereo-tone-4s.wav` at clip gain 0.25, track gain 1 and pan -1. Export through the browser with watermark disabled and audio included. Inspect with `python scripts/mac/validate_mixed_media.py --video editor-smoke-8s.mp4 --tone stereo-tone-4s.wav --encoded mixed-export.mp4 --report mixed-report.json` (NumPy, FFmpeg and FFprobe required).
+
+Acceptance checks require 120 frames at 30fps, duration within one frame of four seconds, still starting exactly at frame 60, expected card bounds within two pixels, red interior/black margins, both source tone frequencies at 25% gain on the left and right/left RMS below 0.001. The RGB MAE threshold of 5/255 for downscaled video is a smoke check, not a perceptual/color parity gate. Source channels are 440Hz/880Hz; the hard-left StereoPanner combines both on the left. Measured results and limitations are in `mixed-media-export-validation.json`. This does not test transitions, captions, masks, effects or audio/video alignment with nonperiodic markers.
+
+
+### Hold-speed boundary fixture
+
+Generate the six-marker source with `python scripts/mac/prepare_audio_markers.py --hold-boundary --output hold-markers-4s.wav`. It adds a deterministic 30ms noise burst at source 0.99s (extra seed 20261018), crossing the speed step. Source SHA: `8f94da9807603bb118272b09f4afc337bbd50d9621e770841caa7a3b073c7275`.
+
+Use a 2s uploaded-audio element with playbackRate hold keys `(0s, 1x)`, `(1s, 3x)`, `(2s, 3x)`, unit gain/pan 0 and no trims. Independent source mapping is `s=t` before 1s, then `s=1+3*(t-1)`. Export in the browser and run `python scripts/mac/validate_speed_ramp.py --curve hold --markers .25 .99 1.25 1.99 2.5 3.75 --source hold-markers-4s.wav --encoded hold-export.mp4 --report hold-timing.json`. The observed file has 60 frames over 2s and all twelve stereo marker timing measurements within 0.941ms. This does not establish waveform/pitch fidelity or preview alignment.

@@ -1,3 +1,4 @@
+import { assertMediaReferences } from "@/services/storage/media-integrity";
 import type { EditorCore } from "@/core";
 import type { RootNode } from "@/services/renderer/nodes/root-node";
 import type { ExportOptions, ExportResult } from "@/types/export";
@@ -100,6 +101,7 @@ export class RendererManager {
 		try {
 			const tracks = this.editor.timeline.getTracks();
 			const mediaAssets = this.editor.media.getAssets();
+			assertMediaReferences(tracks, new Set(mediaAssets.map((asset) => asset.id)));
 			const activeProject = this.editor.project.getActive();
 
 			if (!activeProject) {
@@ -121,6 +123,7 @@ export class RendererManager {
 					tracks,
 					mediaAssets,
 					duration,
+					shouldCancel: onCancel,
 				});
 			}
 
@@ -175,7 +178,7 @@ export class RendererManager {
 				const buffer = await exporter.export({ rootNode: scene });
 				clearInterval(cancelInterval);
 
-				if (cancelled) {
+				if (cancelled || onCancel?.()) {
 					return { success: false, cancelled: true };
 				}
 
@@ -191,6 +194,7 @@ export class RendererManager {
 				clearInterval(cancelInterval);
 			}
 		} catch (error) {
+			if (onCancel?.() || (error instanceof Error && error.name === "AbortError")) return { success: false, cancelled: true };
 			console.error("Export failed:", error);
 			return {
 				success: false,

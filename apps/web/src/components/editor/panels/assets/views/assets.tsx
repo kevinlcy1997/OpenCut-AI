@@ -83,10 +83,13 @@ export function MediaView() {
 			return;
 		}
 
+		const sessionToken = editor.media.getSessionToken();
+		let processedAssets: Awaited<ReturnType<typeof processMediaAssets>> = [];
+		const imported = new Set<File>();
 		setIsProcessing(true);
 		setProgress(0);
 		try {
-			const processedAssets = await processMediaAssets({
+			processedAssets = await processMediaAssets({
 				files,
 				onProgress: (progress: { progress: number }) =>
 					setProgress(progress.progress),
@@ -95,12 +98,19 @@ export function MediaView() {
 				await editor.media.addMediaAsset({
 					projectId: activeProject.metadata.id,
 					asset,
+					sessionToken,
 				});
+				imported.add(asset.file);
 			}
 		} catch (error) {
-			console.error("Error processing files:", error);
-			toast.error("Failed to process files");
+			if ((error as Error).name !== "AbortError") {
+				console.error("Error processing files:", error);
+				toast.error("Failed to process files");
+			}
 		} finally {
+			for (const asset of processedAssets) if (!imported.has(asset.file)) {
+				for (const url of [asset.url, asset.thumbnailUrl]) if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+			}
 			setIsProcessing(false);
 			setProgress(0);
 		}
@@ -127,10 +137,14 @@ export function MediaView() {
 			return;
 		}
 
-		await editor.media.removeMediaAsset({
-			projectId: activeProject.metadata.id,
-			id,
-		});
+		try {
+			await editor.media.removeMediaAsset({
+				projectId: activeProject.metadata.id,
+				id,
+			});
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not remove media");
+		}
 	};
 
 	const handleSort = ({ key }: { key: MediaSortKey }) => {
@@ -378,12 +392,16 @@ function MediaItemList({
 	const handleSaveLabel = async () => {
 		if (!editingLabelId || !activeProject) return;
 		const trimmed = labelDraft.trim();
-		await editor.media.updateMediaAsset({
-			projectId: activeProject.metadata.id,
-			id: editingLabelId,
-			updates: { label: trimmed || undefined },
-		});
-		setEditingLabelId(null);
+		try {
+			await editor.media.updateMediaAsset({
+				projectId: activeProject.metadata.id,
+				id: editingLabelId,
+				updates: { label: trimmed || undefined },
+			});
+			setEditingLabelId(null);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not save the media label");
+		}
 	};
 
 	const handleLabelKeyDown = (e: React.KeyboardEvent) => {

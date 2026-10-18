@@ -18,6 +18,7 @@ import { useServiceHealth } from "@/hooks/use-service-health";
 
 export interface AIStatusInfo {
 	connected: boolean;
+	checking?: boolean;
 	modelsLoaded: string[];
 	memoryUsageMb: number;
 	memoryTotalMb: number;
@@ -90,13 +91,13 @@ export function AIStatusIndicator({
 					type="button"
 					className={cn(
 						"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-all cursor-pointer border",
-						status.connected
+						status.connected || status.checking
 							? "text-foreground border-border hover:bg-accent"
 							: "text-red-400 border-red-500/20 hover:bg-red-500/10",
 						isOpen && "bg-accent",
 						className,
 					)}
-					aria-label={`AI backend ${status.connected ? "connected" : "disconnected"}`}
+					aria-label={`AI backend ${status.checking ? "checking" : status.connected ? "connected" : "disconnected"}`}
 				>
 					<span className="relative flex size-2">
 						{status.connected && (
@@ -105,12 +106,16 @@ export function AIStatusIndicator({
 						<span
 							className={cn(
 								"relative inline-flex size-2 rounded-full",
-								status.connected ? "bg-green-500" : "bg-red-500",
+								status.checking
+									? "bg-muted-foreground animate-pulse"
+									: status.connected
+										? "bg-green-500"
+										: "bg-red-500",
 							)}
 						/>
 					</span>
 					<span className="hidden sm:inline font-medium">
-						{status.connected ? "AI" : "AI Off"}
+						{status.checking ? "AI…" : status.connected ? "AI" : "AI Off"}
 					</span>
 					{status.connected && status.modelsLoaded.length > 0 && (
 						<Badge
@@ -122,11 +127,7 @@ export function AIStatusIndicator({
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent
-				side="bottom"
-				align="end"
-				className="w-80 p-0"
-			>
+			<PopoverContent side="bottom" align="end" className="w-80 p-0">
 				<div className="flex flex-col">
 					{/* Header */}
 					<div className="flex items-center justify-between px-3 py-2.5 border-b">
@@ -135,62 +136,65 @@ export function AIStatusIndicator({
 								icon={SparklesIcon}
 								className={cn(
 									"size-4",
-									status.connected
-										? "text-primary"
-										: "text-red-400",
+									status.connected ? "text-primary" : "text-red-400",
 								)}
 							/>
-							<span className="text-sm font-semibold">
-								AI Monitor
-							</span>
+							<span className="text-sm font-semibold">AI Monitor</span>
 						</div>
 						<div className="flex items-center gap-1.5">
 							<span
 								className={cn(
 									"size-2 rounded-full",
-									status.connected
-										? "bg-green-500"
-										: "bg-red-500",
+									status.checking
+										? "bg-muted-foreground"
+										: status.connected
+											? "bg-green-500"
+											: "bg-red-500",
 								)}
 							/>
 							<span
 								className={cn(
 									"text-xs font-medium",
-									status.connected
-										? "text-green-500"
-										: "text-red-400",
+									status.checking
+										? "text-muted-foreground"
+										: status.connected
+											? "text-green-500"
+											: "text-red-400",
 								)}
 							>
-								{status.connected ? "Online" : "Offline"}
+								{status.checking
+									? "Checking"
+									: status.connected
+										? "Online"
+										: "Offline"}
 							</span>
 						</div>
 					</div>
 
+					{status.checking && (
+						<div
+							role="status"
+							className="px-3 py-3 text-xs text-muted-foreground"
+						>
+							Checking AI backend…
+						</div>
+					)}
 					{/* Connected state */}
 					{status.connected && (
 						<div className="flex flex-col gap-0 divide-y">
 							{/* Quick stats row */}
 							<div className="grid grid-cols-3 divide-x">
-								<StatCell
-									label="Uptime"
-									value={formatUptime(uptime)}
-								/>
+								<StatCell label="Uptime" value={formatUptime(uptime)} />
 								<StatCell
 									label="Compute"
-									value={
-										status.gpuAvailable ? "GPU" : "CPU"
-									}
+									value={status.gpuAvailable ? "GPU" : "CPU"}
 									valueColor={
-										status.gpuAvailable
-											? "text-green-400"
-											: "text-yellow-400"
+										status.gpuAvailable ? "text-green-400" : "text-yellow-400"
 									}
 								/>
 								<StatCell
 									label="Version"
-									value={
-										status.backendVersion ?? "0.1.0"
-									}
+									value={status.backendVersion ?? "0.1.0"}
 								/>
 							</div>
 
@@ -208,10 +212,7 @@ export function AIStatusIndicator({
 									</div>
 									<Progress
 										value={memoryPercent}
-										className={cn(
-											"h-1.5",
-											memoryBarColor,
-										)}
+										className={cn("h-1.5", memoryBarColor)}
 									/>
 								</div>
 							)}
@@ -224,22 +225,29 @@ export function AIStatusIndicator({
 									</span>
 								</div>
 								<div className="flex flex-col gap-1">
-									{([
-										{ key: "ollama" as const, label: "LLM" },
-										{ key: "tts" as const, label: "Voice" },
-										{ key: "whisper" as const, label: "Whisper" },
-										{ key: "image" as const, label: "Image" },
-									] as const).map(({ key, label }) => {
+									{(
+										[
+											{ key: "ollama" as const, label: "LLM" },
+											{ key: "tts" as const, label: "Voice" },
+											{ key: "whisper" as const, label: "Whisper" },
+											{ key: "image" as const, label: "Image" },
+										] as const
+									).map(({ key, label }) => {
 										const svc = services[key];
 										const isRunning = svc.status === "running";
 										const modelLoaded = svc.model_loaded === true;
 										const modelInstalled = svc.model_installed !== false;
 
 										// Determine actual readiness
-										const ollamaModelName = key === "ollama" && isRunning && Array.isArray(svc.models) && svc.models.length > 0
-											? (svc.models[0] as { name: string }).name
-											: null;
-										const isOllamaReady = key === "ollama" && isRunning && ollamaModelName !== null;
+										const ollamaModelName =
+											key === "ollama" &&
+											isRunning &&
+											Array.isArray(svc.models) &&
+											svc.models.length > 0
+												? (svc.models[0] as { name: string }).name
+												: null;
+										const isOllamaReady =
+											key === "ollama" && isRunning && ollamaModelName !== null;
 										const isModelService = key !== "ollama";
 										const isReady = isModelService
 											? isRunning && modelLoaded
@@ -248,7 +256,9 @@ export function AIStatusIndicator({
 										const statusText = !isRunning
 											? "Offline"
 											: key === "ollama"
-												? ollamaModelName ? `Online (${ollamaModelName})` : "No model"
+												? ollamaModelName
+													? `Online (${ollamaModelName})`
+													: "No model"
 												: !modelInstalled
 													? "Not installed"
 													: modelLoaded
@@ -305,10 +315,7 @@ export function AIStatusIndicator({
 										onSetupClick?.();
 									}}
 								>
-									<HugeiconsIcon
-										icon={SparklesIcon}
-										className="size-3 mr-1"
-									/>
+									<HugeiconsIcon icon={SparklesIcon} className="size-3 mr-1" />
 									Manage AI services
 									<HugeiconsIcon
 										icon={ArrowRight01Icon}
@@ -330,7 +337,7 @@ export function AIStatusIndicator({
 					)}
 
 					{/* Disconnected state */}
-					{!status.connected && (
+					{!status.connected && !status.checking && (
 						<div className="flex flex-col gap-3 px-3 py-3">
 							{/* Error */}
 							<div className="rounded-md bg-red-500/10 px-3 py-2.5">
@@ -361,9 +368,7 @@ export function AIStatusIndicator({
 							{/* Backend URL */}
 							{status.backendUrl && (
 								<div className="flex items-center justify-between text-[11px]">
-									<span className="text-muted-foreground">
-										Target
-									</span>
+									<span className="text-muted-foreground">Target</span>
 									<code className="font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded text-[10px]">
 										{status.backendUrl}
 									</code>

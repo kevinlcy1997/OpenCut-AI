@@ -1,0 +1,63 @@
+{
+  "checks": {
+    "duration": true,
+    "ai_coverage": false,
+    "all_operations_passed": false,
+    "repeated_editing": true,
+    "no_page_errors": true,
+    "memory_observed": true,
+    "post_warmup_swap": true
+  },
+  "mixed_session_checks_passed": false,
+  "first_quarter_median_process_rss_bytes": 1753284608,
+  "last_quarter_median_process_rss_bytes": 1429929984,
+  "process_rss_growth_bytes": -323354624,
+  "complete": true,
+  "measured_minutes": 30,
+  "warmup_minutes": 2,
+  "elapsed_seconds": 1948.526,
+  "cycles": 47,
+  "errors": [],
+  "memory_samples": 889,
+  "peak_post_warmup_swap_growth_bytes": 9502720,
+  "sampler_errors": [],
+  "browser_memory_observed": true,
+  "scope": "Mixed 120-second 1920x1080 video/image/audio fixture; process RSS includes browser GPU process, not independent GPU allocation or system-wide Docker memory; no audible-output verification",
+  "full_stability_acceptance_passed": false,
+  "operation_summary": [
+    {
+      "kind": "transcribe",
+      "passed": true,
+      "count": 47
+    },
+    {
+      "kind": "llm",
+      "passed": true,
+      "count": 47
+    },
+    {
+      "kind": "image",
+      "passed": false,
+      "count": 47
+    },
+    {
+      "kind": "editing_playback_export_reload",
+      "passed": true,
+      "count": 47
+    }
+  ],
+  "session_source_snapshot": "b9ac5f2ab898c6db6437b71c1d43a5b7fc447d57",
+  "native_worker_fixes_deployed": false,
+  "ai_success_definition": "Successful HTTP responses; no repeated semantic/quality equivalence evaluation",
+  "raw_report_sha256": "1d55b3bb50c59026c72764272771f00ddfb40534dd0efb39b7ac49ec96c45f5c",
+  "memory_samples_sha256": "d2a19d7866b22aee04780ba8a2246797d2217fda9ae11d5c20d51b61e963b66a",
+  "test_runner_exit_code": 1,
+  "test_failure": "Image admission rejected all47 operations; no full stability approval",
+  "limitations": [
+    "All47 image requests were memory-rejected; image-inclusive acceptance failed",
+    "Successful AI HTTP responses were not repeated WER/semantic/quality evaluations",
+    "Browser/GPU-process/native RSS does not establish independent GPU allocation or all Docker/system memory",
+    "Mixed120-second1080p fixture only; no audible monitoring or comprehensive effects/codec parity",
+    "Session source b9ac5f2 predates later media/upload/save-owner fixes; current source has separate rebuilt production smoke tests"
+  ]
+}

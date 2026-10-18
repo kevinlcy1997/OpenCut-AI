@@ -22,7 +22,10 @@ export interface AudioEffectDefinition {
 	name: string;
 	keywords: string[];
 	params: AudioEffectParam[];
-	createNodes: (ctx: AudioContext, params: Record<string, number>) => AudioNode[];
+	createNodes: (
+		ctx: BaseAudioContext,
+		params: Record<string, number>,
+	) => AudioNode[];
 }
 
 /** A configured audio effect instance stored on a track. */
@@ -33,17 +36,108 @@ export interface TrackAudioEffect {
 	enabled: boolean;
 }
 
-export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefinition> = {
+const dynamicsModules = new WeakMap<BaseAudioContext, Promise<void>>();
+
+/** Prepare only effects that need custom DSP, once per audio context. */
+export async function prepareAudioEffects(
+	context: BaseAudioContext,
+	effects: TrackAudioEffect[],
+): Promise<void> {
+	if (
+		!effects.some(
+			(effect) =>
+				effect.enabled &&
+				(effect.type === "noise-gate" || effect.type === "de-esser"),
+		)
+	)
+		return;
+	if (!context.audioWorklet)
+		throw new Error(
+			"This browser cannot process Noise Gate or De-esser audio effects. Use a browser with AudioWorklet support.",
+		);
+	let loading = dynamicsModules.get(context);
+	if (!loading) {
+		loading = context.audioWorklet
+			.addModule("/audio/track-dynamics.js")
+			.catch((error) => {
+				dynamicsModules.delete(context);
+				throw error;
+			});
+		dynamicsModules.set(context, loading);
+	}
+	await loading;
+}
+
+export function disposeAudioEffectNodes(nodes: AudioNode[]): void {
+	for (const node of nodes) {
+		if ("port" in node) {
+			const port = (node as AudioWorkletNode).port;
+			port.postMessage("dispose");
+			port.close();
+		}
+		node.disconnect();
+	}
+}
+
+export const AUDIO_EFFECT_DEFINITIONS: Record<
+	AudioEffectType,
+	AudioEffectDefinition
+> = {
 	eq: {
 		type: "eq",
 		name: "EQ",
 		keywords: ["equalizer", "eq", "tone", "frequency", "bass", "treble"],
 		params: [
-			{ key: "lowGain", label: "Low", type: "number", default: 0, min: -12, max: 12, step: 0.5, unit: "dB" },
-			{ key: "midGain", label: "Mid", type: "number", default: 0, min: -12, max: 12, step: 0.5, unit: "dB" },
-			{ key: "highGain", label: "High", type: "number", default: 0, min: -12, max: 12, step: 0.5, unit: "dB" },
-			{ key: "lowFreq", label: "Low Freq", type: "number", default: 320, min: 60, max: 1000, step: 10, unit: "Hz" },
-			{ key: "highFreq", label: "High Freq", type: "number", default: 3200, min: 1000, max: 16000, step: 100, unit: "Hz" },
+			{
+				key: "lowGain",
+				label: "Low",
+				type: "number",
+				default: 0,
+				min: -12,
+				max: 12,
+				step: 0.5,
+				unit: "dB",
+			},
+			{
+				key: "midGain",
+				label: "Mid",
+				type: "number",
+				default: 0,
+				min: -12,
+				max: 12,
+				step: 0.5,
+				unit: "dB",
+			},
+			{
+				key: "highGain",
+				label: "High",
+				type: "number",
+				default: 0,
+				min: -12,
+				max: 12,
+				step: 0.5,
+				unit: "dB",
+			},
+			{
+				key: "lowFreq",
+				label: "Low Freq",
+				type: "number",
+				default: 320,
+				min: 60,
+				max: 1000,
+				step: 10,
+				unit: "Hz",
+			},
+			{
+				key: "highFreq",
+				label: "High Freq",
+				type: "number",
+				default: 3200,
+				min: 1000,
+				max: 16000,
+				step: 100,
+				unit: "Hz",
+			},
 		],
 		createNodes: (ctx, params) => {
 			const low = ctx.createBiquadFilter();
@@ -72,11 +166,56 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 		name: "Compressor",
 		keywords: ["compressor", "dynamic", "range", "volume", "leveling"],
 		params: [
-			{ key: "threshold", label: "Threshold", type: "number", default: -24, min: -60, max: 0, step: 1, unit: "dB" },
-			{ key: "ratio", label: "Ratio", type: "number", default: 4, min: 1, max: 20, step: 0.5, unit: ":1" },
-			{ key: "attack", label: "Attack", type: "number", default: 10, min: 0, max: 200, step: 1, unit: "ms" },
-			{ key: "release", label: "Release", type: "number", default: 100, min: 10, max: 1000, step: 10, unit: "ms" },
-			{ key: "makeupGain", label: "Makeup", type: "number", default: 0, min: 0, max: 24, step: 0.5, unit: "dB" },
+			{
+				key: "threshold",
+				label: "Threshold",
+				type: "number",
+				default: -24,
+				min: -60,
+				max: 0,
+				step: 1,
+				unit: "dB",
+			},
+			{
+				key: "ratio",
+				label: "Ratio",
+				type: "number",
+				default: 4,
+				min: 1,
+				max: 20,
+				step: 0.5,
+				unit: ":1",
+			},
+			{
+				key: "attack",
+				label: "Attack",
+				type: "number",
+				default: 10,
+				min: 0,
+				max: 200,
+				step: 1,
+				unit: "ms",
+			},
+			{
+				key: "release",
+				label: "Release",
+				type: "number",
+				default: 100,
+				min: 10,
+				max: 1000,
+				step: 10,
+				unit: "ms",
+			},
+			{
+				key: "makeupGain",
+				label: "Makeup",
+				type: "number",
+				default: 0,
+				min: 0,
+				max: 24,
+				step: 0.5,
+				unit: "dB",
+			},
 		],
 		createNodes: (ctx, params) => {
 			const comp = ctx.createDynamicsCompressor();
@@ -97,18 +236,46 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 		name: "Noise Gate",
 		keywords: ["gate", "noise", "silence", "threshold", "floor"],
 		params: [
-			{ key: "threshold", label: "Threshold", type: "number", default: -40, min: -80, max: 0, step: 1, unit: "dB" },
-			{ key: "attack", label: "Attack", type: "number", default: 5, min: 0, max: 100, step: 1, unit: "ms" },
-			{ key: "release", label: "Release", type: "number", default: 50, min: 10, max: 500, step: 10, unit: "ms" },
+			{
+				key: "threshold",
+				label: "Threshold",
+				type: "number",
+				default: -40,
+				min: -80,
+				max: 0,
+				step: 1,
+				unit: "dB",
+			},
+			{
+				key: "attack",
+				label: "Attack",
+				type: "number",
+				default: 5,
+				min: 0,
+				max: 100,
+				step: 1,
+				unit: "ms",
+			},
+			{
+				key: "release",
+				label: "Release",
+				type: "number",
+				default: 50,
+				min: 10,
+				max: 500,
+				step: 10,
+				unit: "ms",
+			},
 		],
 		createNodes: (ctx, params) => {
-			const gate = ctx.createDynamicsCompressor();
-			gate.threshold.value = params.threshold ?? -40;
-			gate.ratio.value = 20;
-			gate.attack.value = (params.attack ?? 5) / 1000;
-			gate.release.value = (params.release ?? 50) / 1000;
-			gate.knee.value = 1;
-			return [gate];
+			return [
+				new AudioWorkletNode(ctx, "opencut-noise-gate", {
+					outputChannelCount: [2],
+					channelCount: 2,
+					channelCountMode: "explicit",
+					processorOptions: params,
+				}),
+			];
 		},
 	},
 	reverb: {
@@ -116,9 +283,36 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 		name: "Reverb",
 		keywords: ["reverb", "room", "hall", "ambience", "echo", "space"],
 		params: [
-			{ key: "roomSize", label: "Room Size", type: "number", default: 50, min: 0, max: 100, step: 1, unit: "%" },
-			{ key: "damping", label: "Damping", type: "number", default: 50, min: 0, max: 100, step: 1, unit: "%" },
-			{ key: "wetLevel", label: "Wet Level", type: "number", default: 30, min: 0, max: 100, step: 1, unit: "%" },
+			{
+				key: "roomSize",
+				label: "Room Size",
+				type: "number",
+				default: 50,
+				min: 0,
+				max: 100,
+				step: 1,
+				unit: "%",
+			},
+			{
+				key: "damping",
+				label: "Damping",
+				type: "number",
+				default: 50,
+				min: 0,
+				max: 100,
+				step: 1,
+				unit: "%",
+			},
+			{
+				key: "wetLevel",
+				label: "Wet Level",
+				type: "number",
+				default: 30,
+				min: 0,
+				max: 100,
+				step: 1,
+				unit: "%",
+			},
 		],
 		createNodes: (ctx, params) => {
 			// unity fan-out node so both the wet (convolver) and dry paths
@@ -141,9 +335,17 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 
 			for (let channel = 0; channel < 2; channel++) {
 				const data = impulse.getChannelData(channel);
-				for (let i = 0; i < length; i++) {
+				// Rebuild the same room response for playback and every export.
+				// Independent channel seeds preserve stereo diffusion without
+				// depending on global randomness or graph creation order.
+				let noiseState = channel === 0 ? 0x12345678 : 0x87654321;
+				for (let i = 0; i < data.length; i++) {
+					noiseState ^= noiseState << 13;
+					noiseState ^= noiseState >>> 17;
+					noiseState ^= noiseState << 5;
+					const noise = (noiseState >>> 0) / 0x100000000;
 					const decay = Math.pow(1 - damping, i / sampleRate);
-					data[i] = (Math.random() * 2 - 1) * decay * Math.exp(-i / (length * 0.3));
+					data[i] = (noise * 2 - 1) * decay * Math.exp(-i / (length * 0.3));
 				}
 			}
 
@@ -165,25 +367,46 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 		name: "De-esser",
 		keywords: ["de-esser", "sibilance", "ess", "shh", "harsh", "sss"],
 		params: [
-			{ key: "frequency", label: "Frequency", type: "number", default: 6000, min: 2000, max: 12000, step: 100, unit: "Hz" },
-			{ key: "threshold", label: "Threshold", type: "number", default: -30, min: -60, max: 0, step: 1, unit: "dB" },
-			{ key: "reduction", label: "Reduction", type: "number", default: 10, min: 0, max: 30, step: 1, unit: "dB" },
+			{
+				key: "frequency",
+				label: "Frequency",
+				type: "number",
+				default: 6000,
+				min: 2000,
+				max: 12000,
+				step: 100,
+				unit: "Hz",
+			},
+			{
+				key: "threshold",
+				label: "Threshold",
+				type: "number",
+				default: -30,
+				min: -60,
+				max: 0,
+				step: 1,
+				unit: "dB",
+			},
+			{
+				key: "reduction",
+				label: "Reduction",
+				type: "number",
+				default: 10,
+				min: 0,
+				max: 30,
+				step: 1,
+				unit: "dB",
+			},
 		],
 		createNodes: (ctx, params) => {
-			const filter = ctx.createBiquadFilter();
-			filter.type = "peaking";
-			filter.frequency.value = params.frequency ?? 6000;
-			filter.Q.value = 2.0;
-
-			const comp = ctx.createDynamicsCompressor();
-			comp.threshold.value = params.threshold ?? -30;
-			comp.ratio.value = 12;
-			comp.attack.value = 0.001;
-			comp.release.value = 0.05;
-			comp.knee.value = 3;
-
-			filter.connect(comp);
-			return [filter, comp];
+			return [
+				new AudioWorkletNode(ctx, "opencut-de-esser", {
+					outputChannelCount: [2],
+					channelCount: 2,
+					channelCountMode: "explicit",
+					processorOptions: params,
+				}),
+			];
 		},
 	},
 	limiter: {
@@ -191,8 +414,26 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 		name: "Limiter",
 		keywords: ["limiter", "brick", "wall", "ceiling", "clip", "protect"],
 		params: [
-			{ key: "ceiling", label: "Ceiling", type: "number", default: -1, min: -6, max: 0, step: 0.1, unit: "dB" },
-			{ key: "release", label: "Release", type: "number", default: 50, min: 10, max: 500, step: 10, unit: "ms" },
+			{
+				key: "ceiling",
+				label: "Ceiling",
+				type: "number",
+				default: -1,
+				min: -6,
+				max: 0,
+				step: 0.1,
+				unit: "dB",
+			},
+			{
+				key: "release",
+				label: "Release",
+				type: "number",
+				default: 50,
+				min: 10,
+				max: 500,
+				step: 10,
+				unit: "ms",
+			},
 		],
 		createNodes: (ctx, params) => {
 			const limiter = ctx.createDynamicsCompressor();
@@ -206,7 +447,9 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 	},
 };
 
-export function getAudioEffectDefinition(type: AudioEffectType): AudioEffectDefinition {
+export function getAudioEffectDefinition(
+	type: AudioEffectType,
+): AudioEffectDefinition {
 	return AUDIO_EFFECT_DEFINITIONS[type];
 }
 

@@ -284,6 +284,8 @@ function ToolbarButton({
 				<Button
 					variant={isActive ? "secondary" : "text"}
 					size="icon"
+					aria-label={tooltip}
+					disabled={disabled}
 					onClick={(event) => onClick({ event })}
 					className={cn(
 						"rounded-sm",

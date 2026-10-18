@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -73,6 +74,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# The native launcher adds its own import path; container deployments retain
+# their configured CORS behavior and do not depend on native runtime modules.
+if os.getenv("OPENCUT_MAC_STATE"):
+    from local_access import LocalAccessGuard
+    app.add_middleware(LocalAccessGuard)
 
 # Static files for generated content
 app.mount("/generated", StaticFiles(directory=settings.GENERATED_DIR), name="generated")

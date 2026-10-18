@@ -1,16 +1,19 @@
 name: Bun CI
 
+permissions:
+  contents: read
+
 concurrency:
   group: bun-ci-${{ github.ref }}
   cancel-in-progress: true
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/local-production-readiness"]
     paths-ignore:
       - "*.md"
   pull_request:
-    branches: [main]
+    branches: [main, "feat/apple-silicon-*"]
     paths-ignore:
       - "*.md"
 
@@ -53,7 +56,7 @@ jobs:
           key: ${{ runner.os }}-bun-1.2.18-${{ hashFiles('bun.lock') }}
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build
         working-directory: apps/web
@@ -61,3 +64,70 @@ jobs:
 
       - name: Run tests
         run: bun test
+      - name: Check browser harness types
+        if: runner.os == 'Linux'
+        run: bun run test:browser:types
+      - name: Install browser and media inspection tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          bunx playwright install --with-deps chromium
+      - name: Verify production browser storage and export
+        if: runner.os == 'Linux'
+        env:
+          OPENCUT_BROWSER_START_SERVER: "1"
+        run: bun run test:browser
+      - name: Preserve browser failure diagnostics
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-integration-${{ github.event_name }}
+          path: |
+            .mac-runtime/browser-integration-report.json
+            .mac-runtime/browser-test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preserve browser validation measurements
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-validation-${{ github.event_name }}
+          path: .mac-runtime/browser-integration-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  native-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install native test dependencies
+        run: python -m pip install -r scripts/mac/locks/tests.lock
+      - name: Test native ownership, access and measurement logic
+        env:
+          PYTHONPATH: scripts/mac
+        run: >-
+          python -m unittest
+          scripts/mac/test_runtime.py
+          scripts/mac/test_coordinator.py
+          scripts/mac/test_local_access.py
+          scripts/mac/test_validate_audio.py
+          scripts/mac/test_validate_speed_ramp.py
+          scripts/mac/test_soak.py
+      - name: Test native media cancellation and cleanup
+        env:
+          PYTHONPATH: services/media-service
+        run: python -m unittest services/media-service/test_media.py
+      - name: Test image responsiveness, ownership and device selection
+        env:
+          PYTHONPATH: services/image-service
+          GENERATED_DIR: /tmp/opencut-test-generated
+          UPLOAD_DIR: /tmp/opencut-test-uploads
+        run: python -m unittest services/image-service/test_runtime.py services/image-service/test_device.py
+      - name: Test sustained-session telemetry and sampler ownership
+        run: python -m unittest tests/browser/test_session_memory.py

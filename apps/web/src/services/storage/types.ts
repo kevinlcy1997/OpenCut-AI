@@ -39,6 +39,9 @@ export const PROXY_THRESHOLD_HEIGHT = 1080;
 export interface MediaAssetData {
 	id: string;
 	name: string;
+	/** Original file identity is independent of the editable display name. */
+	originalName?: string;
+	mimeType?: string;
 	type: MediaType;
 	size: number;
 	lastModified: number;

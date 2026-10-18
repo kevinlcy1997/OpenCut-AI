@@ -1,5 +1,6 @@
 """Native development supervisor. Run: python3 scripts/mac/runtime.py COMMAND."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import fcntl
 import hashlib
 import json
@@ -44,15 +45,29 @@ def executable(name):
 def preflight():
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         raise RuntimeError("Use native ARM64 Python on Apple Silicon macOS")
+    if not identity(os.getpid()):
+        raise RuntimeError("Cannot inspect process identity; native runtime was not started")
     for tool in ("uv", "bun", "node", "ffmpeg", "ffprobe", "docker", "ollama"):
         executable(tool)
     run(["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def identity(pid):
-    result = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,lstart="], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,lstart="], capture_output=True, text=True)
+    except OSError as error:
+        raise RuntimeError(f"Cannot inspect identity of process {pid}; runtime ownership state preserved") from error
     if result.returncode != 0 or not result.stdout.strip():
-        return ""
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return ""
+        except PermissionError:
+            pass
+        # Failure to inspect a live process is not evidence that it stopped.
+        # Preserve the ownership ledger so a later unrestricted restart can
+        # still safely clean up the existing runtime.
+        raise RuntimeError(f"Cannot verify identity of process {pid}; runtime ownership state preserved")
     status, started = result.stdout.strip().split(maxsplit=1)
     return "" if status.startswith("Z") else started
 
@@ -78,7 +93,20 @@ def descendants(pid):
 
 def read_state():
     path = STATE / "processes.json"
-    return json.loads(path.read_text()) if path.exists() else {}
+    if not path.exists():
+        return {}
+    try:
+        entries = json.loads(path.read_text())
+        if not isinstance(entries, dict):
+            raise ValueError("Expected a process map")
+        for name, entry in entries.items():
+            if not isinstance(entry, dict):
+                raise ValueError("Invalid process entry")
+            if name != "infrastructure" and (type(entry.get("pid")) is not int or entry["pid"] <= 1 or not isinstance(entry.get("identity"), str) or not isinstance(entry.get("health"), str)):
+                raise ValueError("Incomplete process identity")
+        return entries
+    except (ValueError, TypeError) as error:
+        raise RuntimeError("Invalid .mac-runtime/processes.json; preserve the file and inspect owned processes before recovery") from error
 
 
 def save(entries):
@@ -159,6 +187,7 @@ def initialize_database(env):
 
 
 def stop(entries):
+    plans = []
     for name, entry in reversed(list(entries.items())):
         if name == "infrastructure":
             continue
@@ -167,6 +196,12 @@ def stop(entries):
             owned.extend(descendants(entry["pid"]))
             owned.append(entry)
         owned = {process["pid"]: process for process in owned}
+        for process in owned.values():
+            live(process)
+        plans.append(owned)
+    # Validate every group before the first signal or infrastructure mutation.
+    # Recheck identity immediately before signalling to defend against PID reuse.
+    for owned in plans:
         for process in reversed(list(owned.values())):
             if live(process):
                 os.kill(process["pid"], signal.SIGTERM)
@@ -181,7 +216,13 @@ def stop(entries):
     save({})
 
 
-def start():
+def web_commands(development=False):
+    if development:
+        return None, ["bun", "run", "--cwd", "apps/web", "dev", "--hostname", "127.0.0.1", "--port", "3000"]
+    return ["bun", "run", "--cwd", "apps/web", "build"], ["bun", "run", "--cwd", "apps/web", "start", "--hostname", "127.0.0.1", "--port", "3000"]
+
+
+def start(development=False):
     started = time.perf_counter()
     preflight()
     entries = read_state()
@@ -212,6 +253,8 @@ def start():
                XDG_CACHE_HOME=str(STATE / "cache"),
                NEXT_PUBLIC_NATIVE_MEDIA_URL="http://127.0.0.1:8428")
     # Local benchmark endpoints require explicit opt-in and the runtime token.
+    env["NODE_ENV"] = "development" if development else "production"
+    env["OPENCUT_NEXT_DIST_DIR"] = ".next" if development else ".next-production"
     env["OPENCUT_NATIVE_BENCHMARK"] = os.getenv("OPENCUT_NATIVE_BENCHMARK", "0")
     for name, port in SERVICES.items():
         setting = name.removesuffix("-service").upper()
@@ -234,6 +277,10 @@ def start():
         save(entries)
         run(infrastructure() + ["up", "-d", "--wait"])
         initialize_database(env)
+        build, web = web_commands(development)
+        if build:
+            print("Building the production website...", flush=True)
+            run(build, cwd=ROOT, env=env)
         launch("ollama", ["ollama", "serve"], ROOT, "http://127.0.0.1:11436/api/tags")
         backend_python = str(ROOT / "services/ai-backend/.venv/bin/python")
         launch("ollama-proxy", [backend_python, "-m", "uvicorn", "ollama_proxy:app", "--host", "127.0.0.1", "--port", "11435"], ROOT, "http://127.0.0.1:11435/health")
@@ -241,7 +288,7 @@ def start():
             directory = ROOT / "services" / name
             launch(name, [str(directory / ".venv/bin/python"), "-m", "uvicorn", "bootstrap:app", "--host", "127.0.0.1", "--port", str(port)], directory, f"http://127.0.0.1:{port}/health")
         launch("ai-backend", [backend_python, "run.py"], ROOT / "services/ai-backend", "http://127.0.0.1:8420/health")
-        launch("web", ["bun", "run", "--cwd", "apps/web", "dev", "--hostname", "127.0.0.1", "--port", "3000"], ROOT, "http://127.0.0.1:3000")
+        launch("web", web, ROOT, "http://127.0.0.1:3000")
         (STATE / "startup.json").write_text(json.dumps({"seconds": time.perf_counter() - started, "hardware_model": model.stdout.strip(), "platform": platform.platform(), "python": platform.python_version(), "measurement": "fresh service processes with cached infrastructure/dependencies", "heavy_model_loads_included": False}, indent=2))
         print("OpenCut: http://127.0.0.1:3000; model downloads occur on demand")
     except BaseException:
@@ -249,11 +296,64 @@ def start():
         raise
 
 
+def infrastructure_status():
+    path = STATE / "compose.json"
+    if not path.exists():
+        return "missing configuration"
+    try:
+        result = subprocess.run(["docker", "compose", "-p", "opencut-mac", "-f", str(path), "ps", "--all", "--format", "json"], check=True, capture_output=True, text=True, timeout=10)
+        try:
+            rows = json.loads(result.stdout)
+            rows = rows if isinstance(rows, list) else [rows]
+        except json.JSONDecodeError:
+            rows = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        if not all(isinstance(row, dict) for row in rows):
+            raise ValueError("Invalid Compose status")
+        services = {row["Service"]: row for row in rows}
+        for name in ("db", "redis", "redis-http"):
+            row = services.get(name, {})
+            if row.get("State") != "running" or row.get("Health", "") not in ("", "healthy"):
+                return f"unhealthy ({name})"
+        return "healthy"
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        return "unavailable (check Docker Desktop)"
+
+
+def process_status(item):
+    name, entry = item
+    if name == "infrastructure":
+        return name, infrastructure_status()
+    try:
+        if not live(entry):
+            return name, "stopped"
+    except RuntimeError:
+        return name, "identity-unavailable"
+    try:
+        with urllib.request.urlopen(entry["health"], timeout=3) as response:
+            return name, "healthy" if response.status == 200 else "unhealthy"
+    except (OSError, ValueError, KeyError):
+        return name, "unhealthy"
+
+
+def runtime_status(entries):
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        services = dict(pool.map(process_status, entries.items()))
+    required = {"infrastructure", "web", "ai-backend", "ollama", "ollama-proxy", *SERVICES}
+    for name in sorted(required - services.keys()):
+        services[name] = "missing"
+    return {"ready": all(status == "healthy" for status in services.values()), "services": services,
+            "recovery_command": "./scripts/mac.sh restart", "logs_directory": str(STATE / "logs")}
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["setup", "start", "status", "stop", "doctor"])
+    parser.add_argument("command", choices=["setup", "start", "status", "stop", "restart", "doctor"])
+    parser.add_argument("--json", action="store_true", dest="json_output", help="Print machine-readable status")
+    parser.add_argument("--dev", action="store_true", help="Use the development web server instead of a production build")
     parser.add_argument("--with-turboquant", action="store_true", help="Include the optional native TurboQuant backend")
     args = parser.parse_args()
+    if args.json_output and args.command != "status":
+        parser.error("--json is supported only for status")
     if args.with_turboquant:
         SERVICES["turboquant-service"] = 8430
     for name in list(SERVICES):
@@ -261,26 +361,31 @@ def main():
             del SERVICES[name]
     STATE.mkdir(mode=0o700, exist_ok=True)
     STATE.chmod(0o700)
+    if args.command == "status":
+        report = runtime_status(read_state())
+        if args.json_output:
+            print(json.dumps(report, indent=2))
+        else:
+            for name, status in report["services"].items():
+                print(name, status)
+            print("Ready" if report["ready"] else "Not ready; inspect .mac-runtime/logs, then run ./scripts/mac.sh restart")
+        if not report["ready"]:
+            raise SystemExit(3)
+        return
     with (STATE / "supervisor.lock").open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if not (STATE / "token").exists():
             (STATE / "token").write_text(secrets.token_urlsafe(32))
             (STATE / "token").chmod(0o600)
-        if args.command == "status":
-            for name, entry in read_state().items():
-                status = "managed" if name == "infrastructure" else "stopped"
-                if name != "infrastructure" and live(entry):
-                    try:
-                        with urllib.request.urlopen(entry["health"], timeout=3) as response:
-                            status = "healthy" if response.status == 200 else "unhealthy"
-                    except (OSError, urllib.error.URLError):
-                        status = "unhealthy"
-                print(name, status)
-        elif args.command == "stop":
+        if args.command == "stop":
             stop(read_state())
         elif args.command == "doctor":
             preflight()
             print("Native prerequisites ready")
+        elif args.command in {"start", "restart"}:
+            if args.command == "restart":
+                stop(read_state())
+            start(development=args.dev)
         else:
             globals()[args.command]()
 

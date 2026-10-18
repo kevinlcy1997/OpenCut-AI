@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "scope": "Local x86-64 Linux Docker emulation; native/media logic tests, not hosted CI or real inference",
+  "source_base_commit": "577b33b65a6c82554f106951f7b660c3a6bfa202",
+  "image": "python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce",
+  "python": "3.11.17",
+  "platform": "Linux x86-64 under Docker on Apple Silicon",
+  "native_tests": {
+    "passed": 41,
+    "seconds": 2.03
+  },
+  "media_tests": {
+    "passed": 15,
+    "seconds": 0.263
+  },
+  "total_passed": 56,
+  "exit_code": 0,
+  "lock_sha256": "f227112068b3b113b81f4ce0b1511c393ca12d491a3075b6a4e3b29ed6d00d25",
+  "media_app_sha256": "af2aab6c02714486a90137f8bd7ebf1c598aad536eefabc3a1ab5633ed10b098",
+  "media_tests_sha256": "8ead60e3c95003e1bf50d9b50e6348e7d1d018c5e9a30257f4916d6b2308c1a5",
+  "runner_sha256": "c76ed2951037787ea7c57e7c7166c1163d6bd4d9c839eddde46006a9570df6c5",
+  "log_sha256": "4705367e0a41adf22455d1ae30a413c7ef7733b5d5004d305357e4259a715bc8",
+  "isolation": "Read-only scripts/mac plus media app.py/test_media.py files; no service environments, runtime tokens, model data or projects mounted",
+  "limitations": [
+    "The media tests control subprocesses and filesystem failures; real VideoToolbox behavior is verified separately",
+    "Does not prove GitHub runner results, browser recovery or editing stability"
+  ]
+}

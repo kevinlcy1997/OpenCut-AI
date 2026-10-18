@@ -1,3 +1,6 @@
+import { restoreJournal } from "./restore-journal";
+import { MissingMediaError } from "./media-integrity";
+import { projectAccess } from "./project-access";
 import type { TProject, TProjectMetadata } from "@/types/project";
 import { getProjectDurationFromScenes } from "@/lib/scenes";
 import type { MediaAsset } from "@/types/assets";
@@ -68,6 +71,15 @@ function normalizeBookmarks({ raw }: { raw: unknown }): Bookmark[] {
 		.filter((b): b is Bookmark => b !== null);
 }
 
+async function finishMediaDeletion(operations: Promise<void>[]): Promise<void> {
+	// Keep the write lease until every store stops mutating, even after failure.
+	const results = await Promise.allSettled(operations);
+	const failures = results.flatMap((result) =>
+		result.status === "rejected" ? [result.reason] : []);
+	if (failures.length) throw new AggregateError(failures,
+		"Could not finish removing media. Retry deletion after checking browser storage.");
+}
+
 class StorageService {
 	private projectsAdapter: IndexedDBAdapter<SerializedProject>;
 	private savedSoundsAdapter: IndexedDBAdapter<SavedSoundsData>;
@@ -103,7 +115,10 @@ class StorageService {
 
 		this.migrationsPromise = runStorageMigrations({ migrations }).then(
 			() => undefined,
-		);
+		).catch((error) => {
+			this.migrationsPromise = null;
+			throw error;
+		});
 		await this.migrationsPromise;
 	}
 
@@ -137,37 +152,41 @@ class StorageService {
 	}
 
 	async saveProject({ project }: { project: TProject }): Promise<void> {
-		const duration =
-			project.metadata.duration ??
-			getProjectDurationFromScenes({ scenes: project.scenes });
-		const serializedScenes: SerializedScene[] = project.scenes.map((scene) => ({
-			id: scene.id,
-			name: scene.name,
-			isMain: scene.isMain,
-			tracks: this.stripAudioBuffers({ tracks: scene.tracks }),
-			bookmarks: scene.bookmarks,
-			markers: scene.markers,
-			createdAt: scene.createdAt.toISOString(),
-			updatedAt: scene.updatedAt.toISOString(),
-		}));
+		return projectAccess.write(project.metadata.id, async () => {
+			const duration =
+				project.metadata.duration ??
+				getProjectDurationFromScenes({ scenes: project.scenes });
+			const serializedScenes: SerializedScene[] = project.scenes.map(
+				(scene) => ({
+					id: scene.id,
+					name: scene.name,
+					isMain: scene.isMain,
+					tracks: this.stripAudioBuffers({ tracks: scene.tracks }),
+					bookmarks: scene.bookmarks,
+					markers: scene.markers,
+					createdAt: scene.createdAt.toISOString(),
+					updatedAt: scene.updatedAt.toISOString(),
+				}),
+			);
 
-		const serializedProject: SerializedProject = {
-			metadata: {
-				id: project.metadata.id,
-				name: project.metadata.name,
-				thumbnail: project.metadata.thumbnail,
-				duration,
-				createdAt: project.metadata.createdAt.toISOString(),
-				updatedAt: project.metadata.updatedAt.toISOString(),
-			},
-			scenes: serializedScenes,
-			currentSceneId: project.currentSceneId,
-			settings: project.settings,
-			version: project.version,
-			timelineViewState: project.timelineViewState,
-		};
+			const serializedProject: SerializedProject = {
+				metadata: {
+					id: project.metadata.id,
+					name: project.metadata.name,
+					thumbnail: project.metadata.thumbnail,
+					duration,
+					createdAt: project.metadata.createdAt.toISOString(),
+					updatedAt: project.metadata.updatedAt.toISOString(),
+				},
+				scenes: serializedScenes,
+				currentSceneId: project.currentSceneId,
+				settings: project.settings,
+				version: project.version,
+				timelineViewState: project.timelineViewState,
+			};
 
-		await this.projectsAdapter.set(project.metadata.id, serializedProject);
+			await this.projectsAdapter.set(project.metadata.id, serializedProject);
+		});
 	}
 
 	async loadProject({
@@ -233,6 +252,13 @@ class StorageService {
 		);
 	}
 
+	async recoverInterruptedRestores(): Promise<void> {
+		await restoreJournal.recover({
+			projectExists: async (id) => (await this.projectsAdapter.get(id)) !== null,
+			deleteMedia: (id) => this.deleteProjectMedia({ projectId: id }),
+		});
+	}
+
 	async loadAllProjectsMetadata(): Promise<TProjectMetadata[]> {
 		await this.ensureMigrations();
 		const serializedProjects = await this.projectsAdapter.getAll();
@@ -256,7 +282,9 @@ class StorageService {
 	}
 
 	async deleteProject({ id }: { id: string }): Promise<void> {
-		await this.projectsAdapter.remove(id);
+		return projectAccess.write(id, async () => {
+			await this.projectsAdapter.remove(id);
+		});
 	}
 
 	async saveMediaAsset({
@@ -266,28 +294,48 @@ class StorageService {
 		projectId: string;
 		mediaAsset: MediaAsset;
 	}): Promise<void> {
-		const { mediaMetadataAdapter, mediaAssetsAdapter } =
-			this.getProjectMediaAdapters({ projectId });
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter, mediaAssetsAdapter } =
+				this.getProjectMediaAdapters({ projectId });
 
-		await mediaAssetsAdapter.set(mediaAsset.id, mediaAsset.file);
+			await mediaAssetsAdapter.set(mediaAsset.id, mediaAsset.file);
 
-		const metadata: MediaAssetData = {
-			id: mediaAsset.id,
-			name: mediaAsset.name,
-			type: mediaAsset.type,
-			size: mediaAsset.file.size,
-			lastModified: mediaAsset.file.lastModified,
-			width: mediaAsset.width,
-			height: mediaAsset.height,
-			duration: mediaAsset.duration,
-			thumbnailUrl: mediaAsset.thumbnailUrl,
-			ephemeral: mediaAsset.ephemeral,
-			label: mediaAsset.label,
-			proxy: mediaAsset.proxy,
-			needsProxy: mediaAsset.needsProxy,
-		};
+			const metadata: MediaAssetData = {
+				id: mediaAsset.id,
+				name: mediaAsset.name,
+				originalName: mediaAsset.file.name,
+				mimeType: mediaAsset.file.type || getMimeType(mediaAsset.file.name),
+				type: mediaAsset.type,
+				size: mediaAsset.file.size,
+				lastModified: mediaAsset.file.lastModified,
+				width: mediaAsset.width,
+				height: mediaAsset.height,
+				duration: mediaAsset.duration,
+				fps: mediaAsset.fps,
+				thumbnailUrl: mediaAsset.thumbnailUrl,
+				ephemeral: mediaAsset.ephemeral,
+				label: mediaAsset.label,
+				proxy: mediaAsset.proxy,
+				needsProxy: mediaAsset.needsProxy,
+			};
 
-		await mediaMetadataAdapter.set(mediaAsset.id, metadata);
+			await mediaMetadataAdapter.set(mediaAsset.id, metadata);
+		});
+	}
+
+	async updateMediaMetadata({ projectId, id, updates }: {
+		projectId: string; id: string; updates: Partial<Pick<MediaAsset, "label" | "name">>;
+	}): Promise<Pick<MediaAsset, "name" | "label">> {
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
+			const saved = await mediaMetadataAdapter.update(id, (metadata) => ({
+				...metadata,
+				originalName: metadata.originalName ?? metadata.name,
+				mimeType: metadata.mimeType || getMimeType(metadata.originalName ?? metadata.name),
+				...updates,
+			}));
+			return { name: saved.name, label: saved.label };
+		});
 	}
 
 	async loadMediaAsset({
@@ -308,16 +356,21 @@ class StorageService {
 		if (!file || !metadata) return null;
 
 		// OPFS loses the original filename and MIME type — reconstruct from metadata
+		const originalName = metadata.originalName ?? metadata.name;
+		const mimeType = metadata.mimeType || file.type || getMimeType(originalName);
 		const restoredFile =
-			file.name === metadata.name && file.type
+			file.name === originalName && file.type === mimeType && file.lastModified === metadata.lastModified
 				? file
-				: new File([file], metadata.name, {
-						type: file.type || getMimeType(metadata.name),
-						lastModified: file.lastModified,
+				: new File([file], originalName, {
+						type: mimeType,
+						lastModified: metadata.lastModified ?? file.lastModified,
 					});
 
 		let url: string;
-		if (metadata.type === "image" && (!restoredFile.type || restoredFile.type === "")) {
+		if (
+			metadata.type === "image" &&
+			(!restoredFile.type || restoredFile.type === "")
+		) {
 			try {
 				const text = await restoredFile.text();
 				if (text.trim().startsWith("<svg")) {
@@ -336,12 +389,16 @@ class StorageService {
 		return {
 			id: metadata.id,
 			name: metadata.name,
+			originalName,
+			mimeType,
 			type: metadata.type,
 			file: restoredFile,
 			url,
 			width: metadata.width,
 			height: metadata.height,
 			duration: metadata.duration,
+			fps: metadata.fps,
+			label: metadata.label,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
 			proxy: metadata.proxy,
@@ -358,8 +415,12 @@ class StorageService {
 		assetId: string;
 		proxyFile: File;
 	}): Promise<void> {
-		const { mediaAssetsAdapter } = this.getProjectMediaAdapters({ projectId });
-		await mediaAssetsAdapter.set(`${assetId}-proxy`, proxyFile);
+		return projectAccess.write(projectId, async () => {
+			const { mediaAssetsAdapter } = this.getProjectMediaAdapters({
+				projectId,
+			});
+			await mediaAssetsAdapter.set(`${assetId}-proxy`, proxyFile);
+		});
 	}
 
 	async loadProxyFile({
@@ -380,8 +441,12 @@ class StorageService {
 		projectId: string;
 		assetId: string;
 	}): Promise<void> {
-		const { mediaAssetsAdapter } = this.getProjectMediaAdapters({ projectId });
-		await mediaAssetsAdapter.remove(`${assetId}-proxy`);
+		return projectAccess.write(projectId, async () => {
+			const { mediaAssetsAdapter } = this.getProjectMediaAdapters({
+				projectId,
+			});
+			await mediaAssetsAdapter.remove(`${assetId}-proxy`);
+		});
 	}
 
 	async loadAllMediaAssets({
@@ -393,17 +458,32 @@ class StorageService {
 			projectId,
 		});
 
-		const mediaIds = await mediaMetadataAdapter.list();
+		const metadata = await mediaMetadataAdapter.getAll();
 		const mediaItems: MediaAsset[] = [];
-
-		for (const id of mediaIds) {
-			const item = await this.loadMediaAsset({ projectId, id });
-			if (item) {
-				mediaItems.push(item);
+		const missing: MediaAssetData[] = [];
+		try {
+			for (const entry of metadata) {
+				const item = await this.loadMediaAsset({ projectId, id: entry.id });
+				if (item) mediaItems.push(item);
+				else missing.push(entry);
 			}
+			if (missing.length) throw new MissingMediaError(missing);
+			return mediaItems;
+		} catch (error) {
+			for (const item of mediaItems) if (item.url) URL.revokeObjectURL(item.url);
+			throw error;
 		}
+	}
 
-		return mediaItems;
+	async reconnectMediaFile({ projectId, id, file }: { projectId: string; id: string; file: File }): Promise<void> {
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({ projectId });
+			const metadata = await mediaMetadataAdapter.get(id);
+			if (!metadata) throw new Error("Media metadata is missing; restore a project backup");
+			const originalName = metadata.originalName ?? metadata.name;
+			if (file.name !== originalName || file.size !== metadata.size) throw new Error(`Choose the original ${originalName} (${metadata.size} bytes)`);
+			await mediaAssetsAdapter.set(id, file);
+		});
 	}
 
 	async deleteMediaAsset({
@@ -413,13 +493,15 @@ class StorageService {
 		projectId: string;
 		id: string;
 	}): Promise<void> {
-		const { mediaMetadataAdapter, mediaAssetsAdapter } =
-			this.getProjectMediaAdapters({ projectId });
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter, mediaAssetsAdapter } =
+				this.getProjectMediaAdapters({ projectId });
 
-		await Promise.all([
-			mediaAssetsAdapter.remove(id),
-			mediaMetadataAdapter.remove(id),
-		]);
+			await finishMediaDeletion([
+				mediaAssetsAdapter.remove(id),
+				mediaMetadataAdapter.remove(id),
+			]);
+		});
 	}
 
 	async deleteProjectMedia({
@@ -427,18 +509,22 @@ class StorageService {
 	}: {
 		projectId: string;
 	}): Promise<void> {
-		const { mediaMetadataAdapter, mediaAssetsAdapter } =
-			this.getProjectMediaAdapters({ projectId });
+		return projectAccess.write(projectId, async () => {
+			const { mediaMetadataAdapter, mediaAssetsAdapter } =
+				this.getProjectMediaAdapters({ projectId });
 
-		await Promise.all([
-			mediaMetadataAdapter.clear(),
-			mediaAssetsAdapter.clear(),
-		]);
+			await finishMediaDeletion([
+				mediaMetadataAdapter.clear(),
+				mediaAssetsAdapter.clear(),
+			]);
+		});
 	}
 
 	async clearAllData(): Promise<void> {
-		await this.projectsAdapter.clear();
-		// project-specific media and timelines cleaned up when projects are deleted
+		for (const id of await this.projectsAdapter.list()) {
+			await this.deleteProject({ id });
+		}
+		// Project-specific media and timelines are cleaned up when projects are deleted.
 	}
 
 	async getStorageInfo(): Promise<{

@@ -1,0 +1,20 @@
+{
+  "ready": false,
+  "services": {
+    "infrastructure": "healthy",
+    "ollama": "healthy",
+    "ollama-proxy": "healthy",
+    "whisper-service": "healthy",
+    "tts-service": "healthy",
+    "image-service": "healthy",
+    "speaker-service": "healthy",
+    "face-service": "stopped",
+    "clip-service": "healthy",
+    "translate-service": "healthy",
+    "media-service": "healthy",
+    "ai-backend": "healthy",
+    "web": "healthy"
+  },
+  "recovery_command": "./scripts/mac.sh restart",
+  "logs_directory": ".mac-runtime/logs"
+}

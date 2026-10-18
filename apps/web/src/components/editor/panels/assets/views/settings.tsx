@@ -34,6 +34,8 @@ import { FactCheckView } from "./factcheck";
 import type { ProxyResolution } from "@/services/storage/types";
 import { NativeRuntimeSettings } from "@/components/editor/native-runtime-settings";
 
+import { ProjectBackupControls } from "@/components/editor/project-backup-controls";
+
 const ORIGINAL_PRESET_VALUE = "original";
 
 export function findPresetIndexByAspectRatio({
@@ -63,6 +65,8 @@ export function SettingsView() {
 				<Section showTopBorder={false}>
 					<SectionContent>
 						<ProjectInfoContent />
+						<p className="text-xs text-muted-foreground my-3">Projects and original media are stored in this browser on this device. Clearing site data removes them. Keep a downloaded project backup outside the browser. Backups include original media and timeline edits; generated proxies and version history are excluded.</p>
+						<ProjectBackupControls allowDownload />
 					</SectionContent>
 				</Section>
 				<Section>

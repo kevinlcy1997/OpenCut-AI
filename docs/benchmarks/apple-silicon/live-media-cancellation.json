@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "first_cancelled": true,
+  "partial_output_removed": true,
+  "second_observed_queued_then_running": true,
+  "active_asset_delete_http": 409,
+  "queued_job_cancelled": true,
+  "following_job_completed": true,
+  "download_bytes": 15451570,
+  "encoder_process_peak_sampled": 1,
+  "process_samples": 721,
+  "limitations": [
+    "10ms sampling cannot prove absence of sub-sample process overlap; coroutine regression tests establish lock ownership",
+    "Native service HTTP only, not browser export or a sustained editing session"
+  ],
+  "media_implementation_sha256": "9b38b8b37c6d954f5c06c714c30d4e2863a7ad201b52b9381d61e3e591084ece",
+  "encoder_identity": "Resolved ffmpeg executable path, not process display name"
+}

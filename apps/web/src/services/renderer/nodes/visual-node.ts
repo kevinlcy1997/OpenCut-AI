@@ -1,3 +1,4 @@
+import { sourceOffsetAt } from "@/lib/media/clip-automation";
 import type { CanvasRenderer } from "../canvas-renderer";
 import { createOffscreenCanvas } from "../canvas-utils";
 import { BaseNode } from "./base-node";
@@ -9,10 +10,8 @@ import {
 	getElementLocalTime,
 	resolveOpacityAtTime,
 	resolveTransformAtTime,
-	resolvePlaybackRateAtTime,
 } from "@/lib/animation";
 import { resolveEffectParamsAtTime } from "@/lib/animation/effect-param-channel";
-import { getNumberChannelForPath } from "@/lib/animation/number-channel";
 import { TIME_EPSILON_SECONDS } from "@/constants/animation-constants";
 import { getEffect } from "@/lib/effects";
 import { webglEffectRenderer } from "../webgl-effect-renderer";
@@ -36,49 +35,8 @@ export abstract class VisualNode<
 > extends BaseNode<Params> {
 	private effectCanvas: ReturnType<typeof createOffscreenCanvas> | null = null;
 	protected getSourceLocalTime({ time }: { time: number }): number {
-		const baseRate = this.params.playbackRate ?? 1.0;
-		const elapsed = time - this.params.timeOffset;
-		const animations = this.params.animations;
-
-		const speedChannel = animations
-			? getNumberChannelForPath({ animations, propertyPath: "playbackRate" })
-			: null;
-
-		if (speedChannel && speedChannel.keyframes.length > 0) {
-			return this.getSourceTimeViaSpeedCurve({
-				localTime: Math.max(0, Math.min(elapsed, this.params.duration)),
-				baseRate,
-				animations: animations!,
-			});
-		}
-
-		return elapsed * baseRate + this.params.trimStart;
-	}
-
-	private getSourceTimeViaSpeedCurve({
-		localTime,
-		baseRate,
-		animations,
-	}: {
-		localTime: number;
-		baseRate: number;
-		animations: ElementAnimations;
-	}): number {
-		const steps = Math.max(10, Math.ceil(localTime * 30));
-		const dt = localTime / steps;
-		let sourceTime = this.params.trimStart;
-
-		for (let i = 0; i < steps; i++) {
-			const t = i * dt;
-			const rate = resolvePlaybackRateAtTime({
-				basePlaybackRate: baseRate,
-				animations,
-				localTime: t,
-			});
-			sourceTime += rate * dt;
-		}
-
-		return sourceTime;
+		const localTime = Math.max(0, Math.min(time - this.params.timeOffset, this.params.duration));
+		return this.params.trimStart + sourceOffsetAt(localTime, this.params.playbackRate ?? 1, this.params.animations);
 	}
 
 	protected getAnimationLocalTime({ time }: { time: number }): number {
@@ -90,11 +48,8 @@ export abstract class VisualNode<
 	}
 
 	protected isInRange({ time }: { time: number }): boolean {
-		const localTime = this.getSourceLocalTime({ time });
-		return (
-			localTime >= this.params.trimStart - TIME_EPSILON_SECONDS &&
-			localTime < this.params.trimStart + this.params.duration
-		);
+		const elapsed = time - this.params.timeOffset;
+		return elapsed >= -TIME_EPSILON_SECONDS && elapsed < this.params.duration;
 	}
 
 	protected renderVisual({

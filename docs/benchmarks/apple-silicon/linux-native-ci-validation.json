@@ -1,0 +1,20 @@
+{
+  "source_commit": "678d05a519e7bc6fdcd87007f193f1c3b25d2845",
+  "source_tree": "1cefcc5be845e862e52d31c700cc83d40adc588c",
+  "image_digest": "python@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce",
+  "platform": "linux/amd64",
+  "python": "3.11.17",
+  "kernel": "6.10.14-linuxkit",
+  "glibc": "2.41",
+  "dependency_lock_sha256": "fe082ba4372c165c0331fe6deed024a68e59aac5c8d4a0bb7126fa000442ef07",
+  "tests": 37,
+  "failures": 0,
+  "errors": 0,
+  "duration_seconds": 1.827,
+  "passed": true,
+  "limitations": [
+    "Local Docker x86-64 emulation on an M4 Mac, not a GitHub-hosted runner",
+    "Native logic/measurement tests only; no Linux frontend build, Windows/macOS CI matrix or model inference",
+    "Scripts mounted read-only; no user projects, database volumes or environment files mounted"
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "passed": true,
+  "scope": "Eleven production-UI integration tests in fresh isolated Chromium contexts; native sustained case skipped in regular run",
+  "playwright": "1.64.1",
+  "browser": "Chrome for Testing 156.0.8078.4 (Playwright chromium revision 1248, full Chromium headless channel)",
+  "stats": {
+    "startTime": "2026-10-18T06:00:00.856Z",
+    "duration": 17184.461,
+    "expected": 11,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "checks": [
+    {
+      "name": "real IndexedDB/OPFS restore survives reload and backup preserves originals",
+      "passed": true
+    },
+    {
+      "name": "correctly hashed malformed archive is rejected without replacing the open project",
+      "passed": true
+    },
+    {
+      "name": "real browser write quota failure preserves the project and recovers its journal before retry",
+      "passed": true
+    },
+    {
+      "name": "missing OPFS original blocks loading and reconnect restores the same project",
+      "passed": true
+    },
+    {
+      "name": "renderer crash after a staged original commit recovers abandoned restore without touching the existing project",
+      "passed": true
+    },
+    {
+      "name": "a second browser tab cannot edit an owned project and recovers it after the owner closes",
+      "passed": true
+    },
+    {
+      "name": "restored project exports a downloadable video with exact frame count and visible original",
+      "passed": true
+    },
+    {
+      "name": "split undo redo persist through production save and reopen",
+      "passed": true
+    },
+    {
+      "name": "file-picker import persists original bytes across project reload",
+      "passed": true
+    },
+    {
+      "name": "display names preserve original SVG identity through backup reload and reconnect",
+      "passed": true
+    },
+    {
+      "name": "failed saves stay protected after browser Back and recover before reopening",
+      "passed": true
+    }
+  ],
+  "test_source_sha256": "89608095e501ca226f9a286c0127a8585716c096ebfbd45e2fb7dfa70a5a42d5",
+  "config_sha256": "ee64c54dd38cc0bc12a5561dbb339e734225b977d6ec7aac00805858976e7ea2",
+  "raw_report_sha256": "b57915a72622f6e47af0ca776f3ffee980762f5173337c7bcc0ab009ceec737e",
+  "quota_method": "CDP effective quota set to 1 byte; navigator estimate remains optimistic; verified visible write/cleanup failure, preserved original backup, empty recovered journal, no staged OPFS originals, then successful retry",
+  "earlier_harness_failures": [
+    "Initial headless-shell run used a short navigation timeout",
+    "First full-Chromium baseline omitted welcome-dialog dismissal",
+    "Initial quota assertion expected admission refusal, but the actual effective-quota failure happened during writing/cleanup",
+    "Awaiting the Page.crash command cannot receive a renderer reply; corrected to await the page crash event",
+    "First multi-original import assertion assumed insertion order; corrected to walk manifest order and compare each original byte-for-byte"
+  ],
+  "limitations": [
+    "Synthetic SVG original and small projects only",
+    "Does not verify whole-browser termination, power loss, other interruption points, large archives, playback/export parity or 30-minute editing/AI stability",
+    "The default quota preflight remains unit-tested separately"
+  ],
+  "crash_method": "Pause only the isolated page after real OPFS close commits staged original bytes; crash actual renderer through CDP Page.crash; open a new page in the same context; verify abandoned journal and staged originals removed, existing backup bytes preserved, and restore retry succeeds",
+  "export_check": "Downloaded H.264 video inspected using FFprobe and FFmpeg: 320x180, 30 frames, 1-second duration within one frame, decoded center pixel red; watermark disabled through UI. No audio in synthetic original.",
+  "production_rebuild": "Current source rebuilt/restarted successfully after archiving session evidence;11 tests pass together in17.2s, native soak skips",
+  "hosted_browser_evidence": {
+    "head_sha": "a0a36e71d0f814715374b8c4f87269579703ec70",
+    "tests": 11,
+    "push_run": 39101789555,
+    "pr_run": 39101792036,
+    "passed": true
+  },
+  "support_sha256": "3ecaee7c6eee0cd43a2c4458d56862a0c3d50dbd7a14ae76e46057762b6b3b63"
+}

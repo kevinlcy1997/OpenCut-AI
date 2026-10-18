@@ -3,6 +3,8 @@ import asyncio
 from contextlib import asynccontextmanager
 import hashlib
 import json
+import logging
+import math
 import os
 import platform
 from pathlib import Path
@@ -13,9 +15,14 @@ import tempfile
 import uuid
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
+from starlette.datastructures import Headers, UploadFile
+from starlette.formparsers import MultiPartParser, MultiPartException
+from starlette.requests import ClientDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 STATE = Path(os.getenv("OPENCUT_MAC_STATE", ".mac-runtime"))
@@ -30,17 +37,19 @@ assets = {}
 jobs = {}
 tasks = {}
 worker_lock = asyncio.Lock()
+upload_spool_reserved_bytes = 0
+logger = logging.getLogger(__name__)
 
 
 class Clip(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     asset_id: str
     start: float = Field(default=0, ge=0)
     duration: float = Field(gt=0, le=14400)
 
 
 class JobRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     kind: str = "export"
     clips: list[Clip] = Field(min_length=1, max_length=100)
     width: int = Field(default=1920, ge=2, le=4096)
@@ -52,7 +61,7 @@ class JobRequest(BaseModel):
 
 
 def disk_usage():
-    return sum(path.stat().st_size for folder in (STORE, STATE / "browser-benchmarks") for path in folder.glob("*") if path.is_file())
+    return upload_spool_reserved_bytes + sum(path.stat().st_size for folder in (STORE, STATE / "browser-benchmarks") for path in folder.glob("*") if path.is_file())
 
 
 def command(request, output):
@@ -72,7 +81,10 @@ def command(request, output):
             raise ValueError("HDR is not supported by the native parity profile")
         if info.get("rotated") or (info.get("fps") and abs(info["fps"] - request.fps) > .001) or info.get("variable_rate"):
             raise ValueError("Native parity profile requires unrotated constant-rate footage matching output fps")
-        if abs(clip.start * request.fps - round(clip.start * request.fps)) > .0001:
+        source_frame = clip.start * request.fps
+        if not math.isfinite(source_frame) or source_frame > 2**53 - 1:
+            raise ValueError("Source frame index exceeds the supported numeric range")
+        if abs(source_frame - round(source_frame)) > .0001:
             raise ValueError("Native trims require frame-aligned source times")
         if info.get("duration") and clip.start + clip.duration > info["duration"] + 1 / request.fps:
             raise ValueError("Clip exceeds its source duration")
@@ -178,18 +190,33 @@ async def capabilities():
             "excluded": ["effects", "transitions", "text", "masks", "speed-changes", "HDR"]}
 
 
+def cleanup_expired():
+    now = time.time()
+    protected = {asset for job in jobs.values() if job["state"] in {"queued", "running"} for asset in job["asset_ids"]}
+    for asset, info in list(assets.items()):
+        if asset not in protected and now - info["used"] > 3600:
+            try:
+                info["path"].unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning("Could not expire native asset %s: %s", asset, error)
+                continue
+            del assets[asset]
+    for key, job in list(jobs.items()):
+        if job["state"] not in {"queued", "running"} and now - job["updated"] > 3600:
+            try:
+                (STORE / f"{key}.mp4").unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning("Could not expire native job %s: %s", key, error)
+                continue
+            del jobs[key]
+
+
 async def cleanup():
     while True:
         await asyncio.sleep(60)
-        protected = {asset for job in jobs.values() if job["state"] in {"queued", "running"} for asset in job["asset_ids"]}
-        for asset, info in list(assets.items()):
-            if asset not in protected and time.time() - info["used"] > 3600:
-                info["path"].unlink(missing_ok=True)
-                del assets[asset]
-        for key, job in list(jobs.items()):
-            if job["state"] not in {"queued", "running"} and time.time() - job["updated"] > 3600:
-                (STORE / f"{key}.mp4").unlink(missing_ok=True)
-                del jobs[key]
+        # One inaccessible file must not kill expiry for the whole worker.
+        # Keep failed entries so the next sweep can retry them.
+        cleanup_expired()
 
 
 @asynccontextmanager
@@ -213,22 +240,36 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, error: RequestValidationError):
+    # JSON numeric exponents can overflow to inf during parsing. Pydantic rejects
+    # them, but the original non-finite input must also be safe to report as JSON.
+    detail = jsonable_encoder(error.errors(), custom_encoder={float: lambda value: value if math.isfinite(value) else str(value)})
+    return JSONResponse({"detail": detail}, status_code=422)
+
 app.add_middleware(CORSMiddleware, allow_origins=list(ORIGINS), allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 
 
-@app.middleware("http")
-async def authorize(request: Request, call_next):
-    if request.method == "OPTIONS" or request.url.path == "/health":
-        return await call_next(request)
-    origin = request.headers.get("origin")
-    if origin and origin not in ORIGINS:
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"detail": "Origin denied"}, status_code=403)
-    if not TOKEN or not secrets.compare_digest(request.headers.get("authorization", ""), f"Bearer {TOKEN}"):
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"detail": "Runtime token required"}, status_code=401)
-    return await call_next(request)
+class RuntimeTokenGuard:
+    """Authorize before body parsing without wrapping request streams in tasks."""
+    def __init__(self, app):
+        self.app = app
 
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] == "OPTIONS" or scope["path"] == "/health":
+            return await self.app(scope, receive, send)
+        headers = Headers(scope=scope)
+        origin = headers.get("origin")
+        if origin and origin not in ORIGINS:
+            return await JSONResponse({"detail": "Origin denied"}, status_code=403)(scope, receive, send)
+        if not TOKEN or not secrets.compare_digest(headers.get("authorization", ""), f"Bearer {TOKEN}"):
+            return await JSONResponse({"detail": "Runtime token required"}, status_code=401)(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+app.add_middleware(RuntimeTokenGuard)
 
 class UploadBodyLimit:
     """Bound multipart spool space before FastAPI parses the uploaded body."""
@@ -241,6 +282,7 @@ class UploadBodyLimit:
             return await self.app(scope, receive, send)
         from fastapi.responses import JSONResponse
         maximum = ASSET_LIMIT + 1024 * 1024
+        global upload_spool_reserved_bytes
         async with self.lock:
             if disk_usage() + 2 * maximum > LIMIT:
                 return await JSONResponse({"detail": "Insufficient temporary upload space"}, status_code=413)(scope, receive, send)
@@ -252,7 +294,15 @@ class UploadBodyLimit:
                 if total > maximum:
                     raise HTTPException(413, "Upload body exceeds native storage limit")
                 return message
-            return await self.app(scope, limited_receive, send)
+            # Multipart TemporaryFile spools can be unlinked while still open,
+            # so directory stat totals cannot account for them. Reserve their
+            # maximum size until parsing, destination copy and file.close finish.
+            # Concurrent encoder quota checks must see this reservation too.
+            upload_spool_reserved_bytes += maximum
+            try:
+                return await self.app(scope, limited_receive, send)
+            finally:
+                upload_spool_reserved_bytes -= maximum
 
 
 app.add_middleware(UploadBodyLimit)
@@ -268,8 +318,29 @@ async def get_capabilities():
     return await capabilities()
 
 
-@app.post("/assets")
-async def upload(file: UploadFile = File(...)):
+@app.post("/assets", openapi_extra={"requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["file"], "properties": {"file": {"type": "string", "format": "binary"}}}}}}})
+async def upload(request: Request):
+    # Own the parser's files even when parsing never returns FormData. The
+    # pinned Starlette parser only closes its spools for MultiPartException;
+    # connection failures, cancellation and body-limit exceptions also need it.
+    parser = MultiPartParser(request.headers, request.stream(), max_files=1, max_fields=0)
+    try:
+        try:
+            form = await parser.parse()
+        except MultiPartException as error:
+            raise HTTPException(400, error.message) from error
+        except ClientDisconnect as error:
+            raise HTTPException(400, "Upload disconnected") from error
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "A single multipart file field named file is required")
+        return await save_upload(file)
+    finally:
+        for spool in parser._files_to_close_on_error:
+            spool.close()
+
+
+async def save_upload(file: UploadFile):
     asset_id = uuid.uuid4().hex
     path = STORE / asset_id
     size = 0
@@ -293,39 +364,50 @@ async def upload(file: UploadFile = File(...)):
 
 
 async def execute(job_id, request):
+    try:
+        # Retain serialization until encoder termination and partial-file cleanup
+        # finish, including cancellation. Queued jobs must not overlap that work.
+        async with worker_lock:
+            await _execute_locked(job_id, request)
+    except asyncio.CancelledError:
+        jobs[job_id].update(state="cancelled", updated=time.time())
+        tasks.pop(job_id, None)
+        raise
+
+
+async def _execute_locked(job_id, request):
     job = jobs[job_id]
     output = STORE / f"{job_id}.mp4"
     process = None
     try:
-        async with worker_lock:
-            job.update(state="running", updated=time.time())
-            if disk_usage() + sum(c.duration for c in request.clips) * request.bitrate / 8 > LIMIT:
-                raise RuntimeError("Insufficient temporary media quota for this export")
-            process = await asyncio.create_subprocess_exec(*command(request, output), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            async def errors():
-                tail = b""
-                while chunk := await process.stderr.read(4096):
-                    tail = (tail + chunk)[-4096:]
-                return tail
-            error_task = asyncio.create_task(errors())
-            try:
-                while line := await process.stdout.readline():
-                    if line.startswith(b"out_time_us="):
-                        try:
-                            job["progress"] = min(.99, int(line.split(b"=")[1]) / 1_000_000 / sum(c.duration for c in request.clips))
-                        except ValueError:
-                            pass
-                    if disk_usage() > LIMIT:
-                        raise RuntimeError("Native media storage limit exceeded while encoding")
-                await process.wait()
-                stderr = await error_task
-                if process.returncode:
-                    raise RuntimeError(stderr.decode(errors="replace"))
-            finally:
-                if not error_task.done():
-                    error_task.cancel()
-                    await asyncio.gather(error_task, return_exceptions=True)
-            job.update(state="complete", progress=1, updated=time.time())
+        job.update(state="running", updated=time.time())
+        if disk_usage() + sum(c.duration for c in request.clips) * request.bitrate / 8 > LIMIT:
+            raise RuntimeError("Insufficient temporary media quota for this export")
+        process = await asyncio.create_subprocess_exec(*command(request, output), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        async def errors():
+            tail = b""
+            while chunk := await process.stderr.read(4096):
+                tail = (tail + chunk)[-4096:]
+            return tail
+        error_task = asyncio.create_task(errors())
+        try:
+            while line := await process.stdout.readline():
+                if line.startswith(b"out_time_us="):
+                    try:
+                        job["progress"] = min(.99, int(line.split(b"=")[1]) / 1_000_000 / sum(c.duration for c in request.clips))
+                    except ValueError:
+                        pass
+                if disk_usage() > LIMIT:
+                    raise RuntimeError("Native media storage limit exceeded while encoding")
+            await process.wait()
+            stderr = await error_task
+            if process.returncode:
+                raise RuntimeError(stderr.decode(errors="replace"))
+        finally:
+            if not error_task.done():
+                error_task.cancel()
+                await asyncio.gather(error_task, return_exceptions=True)
+        job.update(state="complete", progress=1, updated=time.time())
     except asyncio.CancelledError:
         job.update(state="cancelled", updated=time.time())
         raise
@@ -339,9 +421,13 @@ async def execute(job_id, request):
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
-        if job["state"] != "complete":
-            output.unlink(missing_ok=True)
-        tasks.pop(job_id, None)
+        try:
+            if job["state"] != "complete":
+                output.unlink(missing_ok=True)
+        except OSError as error:
+            job.update(error=f"{job.get('error', '')}; Temporary output cleanup failed: {error}"[-2048:], updated=time.time())
+        finally:
+            tasks.pop(job_id, None)
 
 
 @app.post("/jobs", status_code=202)
@@ -394,9 +480,10 @@ async def download(job_id: str):
 async def delete_asset(asset_id: str):
     if any(asset_id in job["asset_ids"] and job["state"] in {"running", "queued"} for job in jobs.values()):
         raise HTTPException(409, "Asset is in use")
-    info = assets.pop(asset_id, None)
+    info = assets.get(asset_id)
     if info:
         info["path"].unlink(missing_ok=True)
+        assets.pop(asset_id, None)
     return {"deleted": bool(info)}
 
 

@@ -51,6 +51,7 @@ export function PreviewToolbar({
 			<Button
 				variant="text"
 				size="icon"
+				aria-label={isPlaying ? "Pause" : "Play"}
 				onClick={() => invokeAction("toggle-play")}
 			>
 				<HugeiconsIcon icon={isPlaying ? PauseIcon : PlayIcon} />

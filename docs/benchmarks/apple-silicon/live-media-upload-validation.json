@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "worker_pid": 69555,
+  "media_implementation_sha256": "7fcdb70635619385636ff5c0a407dfe85cf9ecf241c0e9d9ef5a91f63fc3f733",
+  "baseline_fds": 12,
+  "partial_upload_peak_fds": 14,
+  "fds_after_disconnect": 12,
+  "disconnect_released_descriptors": true,
+  "disconnect_left_no_assets": true,
+  "normal_upload_bytes": 3639354,
+  "invalid_trim_checks": [
+    {
+      "input": "\"inf\"",
+      "http": 422,
+      "detail_is_json": true
+    },
+    {
+      "input": "1e309",
+      "http": 422,
+      "detail_is_json": true
+    },
+    {
+      "input": "1e308",
+      "http": 422,
+      "detail_is_json": true
+    }
+  ],
+  "limitations": [
+    "Descriptor count observes retained socket/spool lifetime; isolated ASGI tests verify exact spool handles and body-limit/cancellation paths",
+    "No two-GiB live overflow upload; body-limit413 covered with bounded isolated fixtures",
+    "Native worker only, not browser project storage or timeline parity"
+  ]
+}
