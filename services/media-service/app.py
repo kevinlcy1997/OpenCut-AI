@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import json
 import logging
+import math
 import os
 import platform
 from pathlib import Path
@@ -16,7 +17,9 @@ from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 STATE = Path(os.getenv("OPENCUT_MAC_STATE", ".mac-runtime"))
@@ -36,14 +39,14 @@ logger = logging.getLogger(__name__)
 
 
 class Clip(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     asset_id: str
     start: float = Field(default=0, ge=0)
     duration: float = Field(gt=0, le=14400)
 
 
 class JobRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     kind: str = "export"
     clips: list[Clip] = Field(min_length=1, max_length=100)
     width: int = Field(default=1920, ge=2, le=4096)
@@ -75,7 +78,10 @@ def command(request, output):
             raise ValueError("HDR is not supported by the native parity profile")
         if info.get("rotated") or (info.get("fps") and abs(info["fps"] - request.fps) > .001) or info.get("variable_rate"):
             raise ValueError("Native parity profile requires unrotated constant-rate footage matching output fps")
-        if abs(clip.start * request.fps - round(clip.start * request.fps)) > .0001:
+        source_frame = clip.start * request.fps
+        if not math.isfinite(source_frame) or source_frame > 2**53 - 1:
+            raise ValueError("Source frame index exceeds the supported numeric range")
+        if abs(source_frame - round(source_frame)) > .0001:
             raise ValueError("Native trims require frame-aligned source times")
         if info.get("duration") and clip.start + clip.duration > info["duration"] + 1 / request.fps:
             raise ValueError("Clip exceeds its source duration")
@@ -231,6 +237,15 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, error: RequestValidationError):
+    # JSON numeric exponents can overflow to inf during parsing. Pydantic rejects
+    # them, but the original non-finite input must also be safe to report as JSON.
+    detail = jsonable_encoder(error.errors(), custom_encoder={float: lambda value: value if math.isfinite(value) else str(value)})
+    return JSONResponse({"detail": detail}, status_code=422)
+
 app.add_middleware(CORSMiddleware, allow_origins=list(ORIGINS), allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 
 

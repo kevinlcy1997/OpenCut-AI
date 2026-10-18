@@ -65,6 +65,19 @@ class MediaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             media.JobRequest(clips=[{"asset_id": "x", "duration": 1}], effects=["blur"])
 
+    def test_nonfinite_and_overflowing_trim_inputs_return_422_without_jobs(self):
+        with TestClient(media.app, raise_server_exceptions=False) as client, patch("app.capabilities", new=AsyncMock(return_value={"hardware_available": True})), patch("app.asyncio.create_subprocess_exec", new=AsyncMock()) as spawn:
+            media.assets["video"] = {"path": Path("source")}
+            for value in ['"inf"', '1e309', '1e308']:
+                with self.subTest(value=value):
+                    payload = '{"clips":[{"asset_id":"video","duration":1,"start":' + value + '}]}'
+                    response = client.post("/jobs", headers={"Authorization": "Bearer test-secret", "Content-Type": "application/json"}, content=payload)
+                    self.assertEqual(response.status_code, 422)
+                    self.assertIsInstance(response.json()["detail"], (str, list))
+            self.assertEqual(media.jobs, {})
+            self.assertEqual(media.tasks, {})
+            spawn.assert_not_called()
+
     def test_unvalidated_automatic_routes_disabled(self):
         with TestClient(media.app) as client, patch("app.capabilities", new=AsyncMock(return_value={"hardware_available": False, "automatic": {"proxy": False, "export": False}})):
             response = client.post("/jobs", headers={"Authorization": "Bearer test-secret"}, json={"clips": [{"asset_id": "x", "duration": 1}]})
