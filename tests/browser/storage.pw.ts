@@ -140,7 +140,7 @@ async function settings(page: Page) {
 		page.getByRole("button", { name: "Download project backup", exact: true }),
 	).toBeVisible();
 }
-async function inspectDownloadedBackup(page: Page) {
+async function inspectDownloadedBackup(page: Page, expectedOriginals: Buffer[] = [original]) {
 	const download = page.waitForEvent("download");
 	await page
 		.getByRole("button", { name: "Download project backup", exact: true })
@@ -151,8 +151,20 @@ async function inspectDownloadedBackup(page: Page) {
 	const length = bytes.readUInt32LE(8);
 	const json = bytes.subarray(44, 44 + length);
 	expect(hash(json)).toEqual(bytes.subarray(12, 44));
-	expect(bytes.subarray(44 + length)).toEqual(original);
-	return JSON.parse(json.toString());
+	const manifest = JSON.parse(json.toString());
+	const remaining = [...expectedOriginals];
+	let cursor = 44 + length;
+	for (const asset of manifest.assets) {
+		const stored = bytes.subarray(cursor, cursor + asset.size);
+		const index = remaining.findIndex((expected) => expected.equals(stored));
+		expect(index).toBeGreaterThanOrEqual(0);
+		remaining.splice(index, 1);
+		expect(asset.hashes).toEqual([hash(stored).toString("hex")]);
+		cursor += asset.size;
+	}
+	expect(remaining).toHaveLength(0);
+	expect(cursor).toBe(bytes.length);
+	return manifest;
 }
 
 test("real IndexedDB/OPFS restore survives reload and backup preserves originals", async ({
@@ -542,4 +554,27 @@ test("split undo redo persist through production save and reopen", async ({ page
 	expect(saved.project.metadata.id).toBe(url.split("/").pop());
 	clips = saved.project.scenes[0].tracks[0].elements;
 	expect(clips.map((clip: { startTime: number; duration: number }) => [clip.startTime, clip.duration])).toEqual([[0, .5], [.5, .5]]);
+});
+
+
+test("file-picker import persists original bytes across project reload", async ({ page }) => {
+	await restore(page, "Original import fixture");
+	const imported = execFileSync(process.env.FFMPEG || "ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=16x16", "-frames:v", "1", "-f", "image2pipe", "-c:v", "png", "pipe:1"]);
+	const input = test.info().outputPath("imported-blue.png");
+	writeFileSync(input, imported);
+	const picker = page.waitForEvent("filechooser");
+	await page.getByRole("button", { name: "Import", exact: true }).click();
+	await (await picker).setFiles(input);
+	await expect(page.getByText("imported-blue.png", { exact: true })).toBeVisible();
+	await settings(page);
+	let saved = await inspectDownloadedBackup(page, [original, imported]);
+	expect(saved.assets).toHaveLength(2);
+	expect(saved.assets.find((asset: { name: string }) => asset.name === "imported-blue.png").name).toBe("imported-blue.png");
+	expect(saved.assets.find((asset: { name: string }) => asset.name === "imported-blue.png").hashes).toEqual([hash(imported).toString("hex")]);
+	await page.reload();
+	await expect(page.getByText("imported-blue.png", { exact: true })).toBeVisible();
+	await settings(page);
+	saved = await inspectDownloadedBackup(page, [original, imported]);
+	expect(saved.assets).toHaveLength(2);
+	expect(saved.assets.find((asset: { name: string }) => asset.name === "imported-blue.png").hashes).toEqual([hash(imported).toString("hex")]);
 });

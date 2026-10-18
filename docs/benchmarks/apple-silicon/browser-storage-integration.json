@@ -1,12 +1,12 @@
 {
   "passed": true,
-  "scope": "Eight production-UI integration tests in fresh isolated Chromium contexts",
+  "scope": "Nine production-UI integration tests in fresh isolated Chromium contexts",
   "playwright": "1.64.1",
   "browser": "Chrome for Testing 156.0.8078.4 (Playwright chromium revision 1248, full Chromium headless channel)",
   "stats": {
-    "startTime": "2026-10-18T05:14:12.672Z",
-    "duration": 11892.012,
-    "expected": 8,
+    "startTime": "2026-10-18T05:17:31.399Z",
+    "duration": 13915.155999999999,
+    "expected": 9,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
@@ -43,17 +43,22 @@
     {
       "name": "split undo redo persist through production save and reopen",
       "passed": true
+    },
+    {
+      "name": "file-picker import persists original bytes across project reload",
+      "passed": true
     }
   ],
-  "test_source_sha256": "9b486a895f48f3b458cda5f22aa1af846446351b53a781915c2de9796b5b2ba9",
+  "test_source_sha256": "9f42fff97bfd09e018038cc65054c1327ff1d5309727dea539a455c197f4c680",
   "config_sha256": "ee64c54dd38cc0bc12a5561dbb339e734225b977d6ec7aac00805858976e7ea2",
-  "raw_report_sha256": "8c0883fb779322f5228898a427bb50b5d681c2c9bede97e4a039e6ae8e3e0cff",
+  "raw_report_sha256": "3e8a1fd5f909767767fbd8f9daa44a43344978c0d1eaf2998d979d3e0414bd2e",
   "quota_method": "CDP effective quota set to 1 byte; navigator estimate remains optimistic; verified visible write/cleanup failure, preserved original backup, empty recovered journal, no staged OPFS originals, then successful retry",
   "earlier_harness_failures": [
     "Initial headless-shell run used a short navigation timeout",
     "First full-Chromium baseline omitted welcome-dialog dismissal",
     "Initial quota assertion expected admission refusal, but the actual effective-quota failure happened during writing/cleanup",
-    "Awaiting the Page.crash command cannot receive a renderer reply; corrected to await the page crash event"
+    "Awaiting the Page.crash command cannot receive a renderer reply; corrected to await the page crash event",
+    "First multi-original import assertion assumed insertion order; corrected to walk manifest order and compare each original byte-for-byte"
   ],
   "limitations": [
     "Synthetic SVG original and small projects only",
@@ -62,5 +67,14 @@
   ],
   "crash_method": "Pause only the isolated page after real OPFS close commits staged original bytes; crash actual renderer through CDP Page.crash; open a new page in the same context; verify abandoned journal and staged originals removed, existing backup bytes preserved, and restore retry succeeds",
   "export_check": "Downloaded H.264 video inspected using FFprobe and FFmpeg: 320x180, 30 frames, 1-second duration within one frame, decoded center pixel red; watermark disabled through UI. No audio in synthetic original.",
-  "production_rebuild": "Native production restart including timeline toolbar fix completed; all eight tests pass together in 11.9 seconds"
+  "production_rebuild": "Native production site includes timeline toolbar fix; all nine tests pass together in 13.9 seconds",
+  "hosted_browser_evidence": {
+    "head_sha": "4864985c8f6c9cd9660845582b053726273df5c4",
+    "tests": 8,
+    "push_job": 117593903496,
+    "pr_job": 117593914580,
+    "push_duration_seconds": 27.5,
+    "passed": true,
+    "note": "Both published eight-case browser jobs pass; ninth import case is local evidence pending publication"
+  }
 }
