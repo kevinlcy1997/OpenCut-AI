@@ -129,3 +129,5 @@ jobs:
           GENERATED_DIR: /tmp/opencut-test-generated
           UPLOAD_DIR: /tmp/opencut-test-uploads
         run: python -m unittest services/image-service/test_runtime.py services/image-service/test_device.py
+      - name: Test sustained-session telemetry and sampler ownership
+        run: python -m unittest tests/browser/test_session_memory.py
