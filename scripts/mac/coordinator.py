@@ -2,6 +2,7 @@
 import asyncio
 import fcntl
 import json
+import math
 import sys
 import os
 import re
@@ -26,6 +27,28 @@ def memory_capacity(total_mb, available_mb):
     # Carve 4GiB out of the total AI budget. OS/editing memory already in use
     # must not be reserved twice; retain 1GiB free for interactive bursts.
     return max(0, min(total_mb - 4096, available_mb - 1024))
+
+
+def current_mps_memory():
+    """Read this worker only; never import/load Torch just for telemetry."""
+    torch = sys.modules.get("torch")
+    try:
+        if torch is None or not torch.backends.mps.is_available():
+            return {}
+    except (AttributeError, RuntimeError):
+        return {}
+    measured = {}
+    for name, field in [("current_allocated_memory", "measured_mps_tensor_mb"),
+                        ("driver_allocated_memory", "measured_mps_driver_mb")]:
+        try:
+            value = getattr(torch.mps, name)() / 1048576
+            if math.isfinite(value) and value >= 0:
+                measured[field] = value
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+    if measured:
+        measured["mps_memory_measured_at"] = time.time()
+    return measured
 
 
 def estimate(service, model):
@@ -91,6 +114,12 @@ class Lease:
             value["measured_process_rss_mb"] = psutil.Process(value["pid"]).memory_info().rss / 1048576
         except (KeyError, psutil.Error):
             value["measured_process_rss_mb"] = None
+        if value.get("pid") == os.getpid():
+            # Other processes can read these last sampled figures from the
+            # lease; the timestamp distinguishes them from live RSS queries.
+            for key in ("measured_mps_tensor_mb", "measured_mps_driver_mb", "mps_memory_measured_at"):
+                value.pop(key, None)
+            value.update(current_mps_memory())
         return value
 
     def write(self, value):
@@ -158,6 +187,11 @@ class Lease:
             capacity = memory_capacity(memory.total / 1048576, memory.available / 1048576)
             # Estimates include this worker's existing runtime/model working set.
             resident = psutil.Process().memory_info().rss / 1048576
+            if previous.get("service") == self.service and not switching_model:
+                # Metal's live tensors may be absent from process RSS. Credit
+                # only measured live allocation, not driver caches or a model
+                # estimate. RSS and GPU figures overlap, so never add them.
+                resident = max(resident, current_mps_memory().get("measured_mps_tensor_mb", 0))
             if self.service == "ollama-proxy" and previous.get("service") == self.service and not switching_model:
                 resident += previous.get("estimated_mb", 0)
             capacity = min(memory.total / 1048576 - 4096, capacity + resident)

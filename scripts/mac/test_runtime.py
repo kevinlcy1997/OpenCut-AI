@@ -26,6 +26,44 @@ class RuntimeTests(unittest.TestCase):
             runtime.stop({"web": {"pid": 123, "identity": "old identity"}})
         kill.assert_not_called()
 
+    def test_failed_process_inspection_is_not_treated_as_stopped(self):
+        result = SimpleNamespace(returncode=1, stdout="", stderr="Operation not permitted")
+        with patch("runtime.subprocess.run", return_value=result), patch("runtime.os.kill", side_effect=PermissionError):
+            with self.assertRaisesRegex(RuntimeError, "ownership state preserved"):
+                runtime.identity(123)
+        with patch("runtime.subprocess.run", side_effect=PermissionError("ps unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "ownership state preserved"):
+                runtime.identity(123)
+
+    def test_confirmed_missing_process_has_no_live_identity(self):
+        with patch("runtime.subprocess.run", return_value=SimpleNamespace(returncode=1, stdout="")), patch("runtime.os.kill", side_effect=ProcessLookupError):
+            self.assertEqual(runtime.identity(123), "")
+
+    def test_stop_prevalidates_all_owners_before_signals_or_state_changes(self):
+        def identity(pid):
+            if pid == 123:
+                raise RuntimeError("Cannot verify identity")
+            return "owned"
+        entries = {"blocked": {"pid": 123, "identity": "owned"}, "safe": {"pid": 456, "identity": "owned"}, "infrastructure": {}}
+        with patch("runtime.identity", side_effect=identity), patch("runtime.descendants", return_value=[]), patch("runtime.os.kill") as kill, patch("runtime.run") as run, patch("runtime.save") as save:
+            with self.assertRaisesRegex(RuntimeError, "Cannot verify identity"):
+                runtime.stop(entries)
+        kill.assert_not_called()
+        run.assert_not_called()
+        save.assert_not_called()
+
+    def test_status_reports_unknown_identity_without_marking_process_stopped(self):
+        with patch("runtime.live", side_effect=RuntimeError("Cannot verify identity")), patch("runtime.urllib.request.urlopen") as request:
+            self.assertEqual(runtime.process_status(("web", {})), ("web", "identity-unavailable"))
+        request.assert_not_called()
+
+    def test_start_preflight_refuses_uninspectable_processes_before_starting_tools(self):
+        with patch("runtime.platform.system", return_value="Darwin"), patch("runtime.platform.machine", return_value="arm64"), patch("runtime.identity", side_effect=RuntimeError("Cannot verify identity")), patch("runtime.executable") as executable, patch("runtime.run") as run:
+            with self.assertRaisesRegex(RuntimeError, "Cannot verify identity"):
+                runtime.preflight()
+        executable.assert_not_called()
+        run.assert_not_called()
+
     def test_setup_preserves_existing_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

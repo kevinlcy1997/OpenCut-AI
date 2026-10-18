@@ -45,15 +45,29 @@ def executable(name):
 def preflight():
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         raise RuntimeError("Use native ARM64 Python on Apple Silicon macOS")
+    if not identity(os.getpid()):
+        raise RuntimeError("Cannot inspect process identity; native runtime was not started")
     for tool in ("uv", "bun", "node", "ffmpeg", "ffprobe", "docker", "ollama"):
         executable(tool)
     run(["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def identity(pid):
-    result = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,lstart="], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,lstart="], capture_output=True, text=True)
+    except OSError as error:
+        raise RuntimeError(f"Cannot inspect identity of process {pid}; runtime ownership state preserved") from error
     if result.returncode != 0 or not result.stdout.strip():
-        return ""
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return ""
+        except PermissionError:
+            pass
+        # Failure to inspect a live process is not evidence that it stopped.
+        # Preserve the ownership ledger so a later unrestricted restart can
+        # still safely clean up the existing runtime.
+        raise RuntimeError(f"Cannot verify identity of process {pid}; runtime ownership state preserved")
     status, started = result.stdout.strip().split(maxsplit=1)
     return "" if status.startswith("Z") else started
 
@@ -173,6 +187,7 @@ def initialize_database(env):
 
 
 def stop(entries):
+    plans = []
     for name, entry in reversed(list(entries.items())):
         if name == "infrastructure":
             continue
@@ -181,6 +196,12 @@ def stop(entries):
             owned.extend(descendants(entry["pid"]))
             owned.append(entry)
         owned = {process["pid"]: process for process in owned}
+        for process in owned.values():
+            live(process)
+        plans.append(owned)
+    # Validate every group before the first signal or infrastructure mutation.
+    # Recheck identity immediately before signalling to defend against PID reuse.
+    for owned in plans:
         for process in reversed(list(owned.values())):
             if live(process):
                 os.kill(process["pid"], signal.SIGTERM)
@@ -302,8 +323,11 @@ def process_status(item):
     name, entry = item
     if name == "infrastructure":
         return name, infrastructure_status()
-    if not live(entry):
-        return name, "stopped"
+    try:
+        if not live(entry):
+            return name, "stopped"
+    except RuntimeError:
+        return name, "identity-unavailable"
     try:
         with urllib.request.urlopen(entry["health"], timeout=3) as response:
             return name, "healthy" if response.status == 200 else "unhealthy"
