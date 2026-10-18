@@ -4,6 +4,8 @@ import { SaveManager } from "./save-manager";
 
 function harness(write: () => Promise<void>, debounceMs = 60_000) {
 	const editor = {
+		scenes: { subscribe: () => () => {} },
+		timeline: { subscribe: () => () => {} },
 		project: {
 			getActiveOrNull: () => ({ metadata: { id: "project" } }),
 			getIsLoading: () => false,
@@ -132,4 +134,35 @@ test("a concurrent suspension rejects flush instead of looping on queued edits",
 	save.reset();
 	resume();
 	save.stop();
+});
+
+
+test("save ownership protects unsaved work independently of mounted editor UI", async () => {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+	const target = new EventTarget();
+	Object.defineProperty(globalThis, "window", { value: target, configurable: true });
+	const pending = deferred();
+	const save = harness(() => pending.promise);
+	const blocked = () => { const event = new Event("beforeunload", { cancelable: true }); target.dispatchEvent(event); return event.defaultPrevented; };
+	try {
+		save.start();
+		save.start();
+		expect(blocked()).toBe(false);
+		save.markDirty();
+		expect(blocked()).toBe(true);
+		const flushing = save.flush();
+		expect(blocked()).toBe(true);
+		pending.resolve();
+		await flushing;
+		expect(blocked()).toBe(false);
+		save.markDirty();
+		save.pause();
+		expect(blocked()).toBe(true);
+		save.stop();
+		expect(blocked()).toBe(false);
+	} finally {
+		save.stop();
+		if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+		else Reflect.deleteProperty(globalThis, "window");
+	}
 });

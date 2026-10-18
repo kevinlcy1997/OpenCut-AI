@@ -459,3 +459,43 @@ test("display names preserve original SVG identity through backup reload and rec
 	expect(saved.project.metadata.id).toBe(projectId);
 	expect(saved.assets[0]).toMatchObject({ name: "Opening card", originalName: "fixture.svg", mime: "image/svg+xml" });
 });
+
+test("failed saves stay protected after browser Back and recover before reopening", async ({ page }) => {
+	const url = await restore(page, "Failed-save navigation fixture");
+	await page.evaluate(() => {
+		const state = window as Window & { rejectProjectWrites?: boolean };
+		state.rejectProjectWrites = true;
+		const put = IDBObjectStore.prototype.put;
+		IDBObjectStore.prototype.put = function (...args: Parameters<IDBObjectStore["put"]>) {
+			if (state.rejectProjectWrites && this.name === "projects") throw new DOMException("Injected project save failure", "QuotaExceededError");
+			return put.apply(this, args);
+		};
+	});
+	await page.getByTitle("Click to edit time", { exact: true }).click();
+	await page.getByPlaceholder("00:00:00:00", { exact: true }).fill("00:00:00:15");
+	await page.getByPlaceholder("00:00:00:00", { exact: true }).press("Enter");
+	await page.keyboard.press("ControlOrMeta+a");
+	await page.getByRole("button", { name: "Split element", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Save failed. Retry saving project", exact: true })).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(/\/projects$/);
+	await expect(page.getByRole("button", { name: "Restore project backup", exact: true })).toBeVisible();
+	const blocked = await page.evaluate(() => {
+		const event = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(event);
+		return event.defaultPrevented;
+	});
+	expect(blocked).toBe(true);
+	await page.evaluate(() => { (window as Window & { rejectProjectWrites?: boolean }).rejectProjectWrites = false; });
+	await page.goForward();
+	await expect(page).toHaveURL(url);
+	await expect(page.locator("input[readonly]")).toHaveValue("Failed-save navigation fixture (restored)");
+	await settings(page);
+	const saved = await inspectDownloadedBackup(page);
+	expect(saved.project.scenes[0].tracks[0].elements).toHaveLength(2);
+	expect(await page.evaluate(() => {
+		const event = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(event);
+		return event.defaultPrevented;
+	})).toBe(false);
+});

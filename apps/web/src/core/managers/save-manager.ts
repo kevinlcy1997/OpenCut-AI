@@ -34,6 +34,18 @@ export class SaveManager {
 				this.markDirty();
 			}),
 		];
+		// The editor shell can unmount while a save is pending or failed (for
+		// example browser Back to Projects). Protection follows the save owner.
+		if (typeof window !== "undefined") {
+			const target = window;
+			const beforeUnload = (event: BeforeUnloadEvent) => {
+				if (!this.getIsDirty()) return;
+				event.preventDefault();
+				event.returnValue = "";
+			};
+			target.addEventListener("beforeunload", beforeUnload);
+			this.unsubscribeHandlers.push(() => target.removeEventListener("beforeunload", beforeUnload));
+		}
 	}
 
 	stop(): void {

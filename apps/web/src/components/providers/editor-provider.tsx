@@ -111,18 +111,6 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 }
 
 function EditorRuntimeBindings() {
-	const editor = useEditor();
-
-	useEffect(() => {
-		const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-			if (!editor.save.getIsDirty()) return;
-			event.preventDefault();
-			(event as unknown as { returnValue: string }).returnValue = "";
-		};
-
-		window.addEventListener("beforeunload", handleBeforeUnload);
-		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [editor]);
 
 	useEditorActions();
 	useKeybindingsListener();

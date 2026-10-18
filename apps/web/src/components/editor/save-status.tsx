@@ -43,16 +43,6 @@ export function SaveStatus({ className }: { className?: string }) {
 		return () => clearInterval(interval);
 	}, []);
 
-	// Warn before closing tab with unsaved changes
-	useEffect(() => {
-		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-			if (editor.save.getIsDirty()) {
-				e.preventDefault();
-			}
-		};
-		window.addEventListener("beforeunload", handleBeforeUnload);
-		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [editor]);
 
 	if (saveError && !isSaving) {
 		return (
