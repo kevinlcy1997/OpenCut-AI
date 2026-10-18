@@ -2,7 +2,7 @@ import type { MediaAssetData } from "./types";
 
 export class MissingMediaError extends Error {
 	constructor(
-		public readonly missing: Pick<MediaAssetData, "id" | "name" | "size">[],
+		public readonly missing: Pick<MediaAssetData, "id" | "name" | "size" | "originalName">[],
 	) {
 		super(
 			`${missing.length} original media file(s) are missing from browser storage. Reconnect the original files or restore a project backup.`,

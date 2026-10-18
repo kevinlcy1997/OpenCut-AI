@@ -303,12 +303,15 @@ class StorageService {
 			const metadata: MediaAssetData = {
 				id: mediaAsset.id,
 				name: mediaAsset.name,
+				originalName: mediaAsset.file.name,
+				mimeType: mediaAsset.file.type || getMimeType(mediaAsset.file.name),
 				type: mediaAsset.type,
 				size: mediaAsset.file.size,
 				lastModified: mediaAsset.file.lastModified,
 				width: mediaAsset.width,
 				height: mediaAsset.height,
 				duration: mediaAsset.duration,
+				fps: mediaAsset.fps,
 				thumbnailUrl: mediaAsset.thumbnailUrl,
 				ephemeral: mediaAsset.ephemeral,
 				label: mediaAsset.label,
@@ -325,7 +328,12 @@ class StorageService {
 	}): Promise<Pick<MediaAsset, "name" | "label">> {
 		return projectAccess.write(projectId, async () => {
 			const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
-			const saved = await mediaMetadataAdapter.update(id, (metadata) => ({ ...metadata, ...updates }));
+			const saved = await mediaMetadataAdapter.update(id, (metadata) => ({
+				...metadata,
+				originalName: metadata.originalName ?? metadata.name,
+				mimeType: metadata.mimeType || getMimeType(metadata.originalName ?? metadata.name),
+				...updates,
+			}));
 			return { name: saved.name, label: saved.label };
 		});
 	}
@@ -348,12 +356,14 @@ class StorageService {
 		if (!file || !metadata) return null;
 
 		// OPFS loses the original filename and MIME type — reconstruct from metadata
+		const originalName = metadata.originalName ?? metadata.name;
+		const mimeType = metadata.mimeType || file.type || getMimeType(originalName);
 		const restoredFile =
-			file.name === metadata.name && file.type
+			file.name === originalName && file.type === mimeType && file.lastModified === metadata.lastModified
 				? file
-				: new File([file], metadata.name, {
-						type: file.type || getMimeType(metadata.name),
-						lastModified: file.lastModified,
+				: new File([file], originalName, {
+						type: mimeType,
+						lastModified: metadata.lastModified ?? file.lastModified,
 					});
 
 		let url: string;
@@ -379,6 +389,8 @@ class StorageService {
 		return {
 			id: metadata.id,
 			name: metadata.name,
+			originalName,
+			mimeType,
 			type: metadata.type,
 			file: restoredFile,
 			url,
@@ -468,7 +480,8 @@ class StorageService {
 			const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({ projectId });
 			const metadata = await mediaMetadataAdapter.get(id);
 			if (!metadata) throw new Error("Media metadata is missing; restore a project backup");
-			if (file.name !== metadata.name || file.size !== metadata.size) throw new Error(`Choose the original ${metadata.name} (${metadata.size} bytes)`);
+			const originalName = metadata.originalName ?? metadata.name;
+			if (file.name !== originalName || file.size !== metadata.size) throw new Error(`Choose the original ${originalName} (${metadata.size} bytes)`);
 			await mediaAssetsAdapter.set(id, file);
 		});
 	}

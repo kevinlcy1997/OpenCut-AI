@@ -19,7 +19,7 @@ export function MissingMediaRecovery({
 			let count = 0;
 			for (const entry of missing) {
 				const match = files.find(
-					(file) => file.name === entry.name && file.size === entry.size,
+					(file) => file.name === (entry.originalName ?? entry.name) && file.size === entry.size,
 				);
 				if (!match) continue;
 				await storageService.reconnectMediaFile({
@@ -49,7 +49,7 @@ export function MissingMediaRecovery({
 			<ul className="text-xs max-h-48 overflow-auto">
 				{missing.map((entry) => (
 					<li key={entry.id}>
-						{entry.name} · {entry.size.toLocaleString()} bytes
+						{entry.originalName ?? entry.name} · {entry.size.toLocaleString()} bytes
 					</li>
 				))}
 			</ul>

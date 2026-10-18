@@ -74,3 +74,14 @@ describe("missing media recovery", () => {
 		expect(store).toHaveBeenCalledWith("media", original);
 	});
 });
+
+test("renamed missing media reconnects using the original filename rather than display name", async () => {
+	watch(spyOn(projectAccess, "write").mockImplementation((_id, operation) => operation()));
+	watch(spyOn(IndexedDBAdapter.prototype, "get").mockResolvedValue({ ...metadata, name: "Interview", originalName: "original.mp4" }));
+	const store = watch(spyOn(OPFSAdapter.prototype, "set").mockResolvedValue());
+	const service = new StorageService();
+	const original = new File(["data"], "original.mp4");
+	await service.reconnectMediaFile({ projectId: "project", id: "media", file: original });
+	expect(store).toHaveBeenCalledWith("media", original);
+	await expect(service.reconnectMediaFile({ projectId: "project", id: "media", file: new File(["data"], "Interview") })).rejects.toThrow("original.mp4");
+});

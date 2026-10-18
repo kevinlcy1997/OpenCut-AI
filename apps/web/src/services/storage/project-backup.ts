@@ -96,6 +96,7 @@ const projectSchema = z
 const assetSchema = z.object({
 	id,
 	name: z.string().max(1000),
+	originalName: z.string().max(1000).optional(),
 	type: z.enum(["video", "audio", "image"]),
 	mime: z.string().max(255),
 	size: z.number().int().nonnegative().max(MAX_ARCHIVE),
@@ -145,6 +146,7 @@ export async function createProjectBackup(
 		entries.push({
 			id: asset.id,
 			name: asset.name,
+			originalName: asset.file.name,
 			type: asset.type,
 			mime: asset.file.type,
 			size: asset.file.size,
@@ -212,7 +214,7 @@ export async function readProjectBackup(
 			throw new Error("Truncated backup media");
 		const file = new File(
 			[blob.slice(offset, offset + entry.size)],
-			entry.name,
+			entry.originalName ?? entry.name,
 			{ type: entry.mime, lastModified: entry.lastModified },
 		);
 		if (JSON.stringify(await hashes(file)) !== JSON.stringify(entry.hashes))
@@ -224,7 +226,7 @@ export async function readProjectBackup(
 			lastModified: _modified,
 			...metadata
 		} = entry;
-		assets.push({ ...metadata, file });
+		assets.push({ ...metadata, mimeType: entry.mime, file });
 		offset += entry.size;
 	}
 	if (offset !== blob.size) throw new Error("Unexpected trailing backup data");

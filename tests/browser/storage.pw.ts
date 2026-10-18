@@ -425,3 +425,37 @@ test("file-picker import persists original bytes across project reload", async (
 	expect(saved.assets).toHaveLength(2);
 	expect(saved.assets.find((asset: { name: string }) => asset.name === "imported-blue.png").hashes).toEqual([hash(imported).toString("hex")]);
 });
+
+test("display names preserve original SVG identity through backup reload and reconnect", async ({ page }) => {
+	const source = archive("Renamed original fixture");
+	const length = source.readUInt32LE(8);
+	const manifest = JSON.parse(source.subarray(44, 44 + length).toString());
+	manifest.assets[0].name = "Opening card";
+	manifest.assets[0].originalName = "fixture.svg";
+	const json = Buffer.from(JSON.stringify(manifest));
+	const header = Buffer.alloc(44);
+	header.write("OCBACK01");
+	header.writeUInt32LE(json.length, 8);
+	hash(json).copy(header, 12);
+	const url = await restore(page, "Renamed original fixture", Buffer.concat([header, json, original]));
+	const projectId = url.split("/").pop();
+	await page.reload();
+	await expect(page.getByText("Opening card", { exact: true })).toBeVisible();
+	await settings(page);
+	let saved = await inspectDownloadedBackup(page);
+	expect(saved.assets[0]).toMatchObject({ name: "Opening card", originalName: "fixture.svg", mime: "image/svg+xml" });
+	await page.evaluate(async (id) => {
+		const root = await navigator.storage.getDirectory();
+		const directory = await root.getDirectoryHandle(`media-files-${id}`);
+		await directory.removeEntry("fixture-media");
+	}, projectId);
+	await page.reload();
+	await expect(page.getByLabel("Reconnect original files", { exact: true })).toBeVisible();
+	await expect(page.getByText(/fixture\.svg ·/)).toBeVisible();
+	await page.getByLabel("Reconnect original files", { exact: true }).setInputFiles({ name: "fixture.svg", mimeType: "image/svg+xml", buffer: original });
+	await expect(page.locator("input[readonly]")).toHaveValue("Renamed original fixture (restored)");
+	await settings(page);
+	saved = await inspectDownloadedBackup(page);
+	expect(saved.project.metadata.id).toBe(projectId);
+	expect(saved.assets[0]).toMatchObject({ name: "Opening card", originalName: "fixture.svg", mime: "image/svg+xml" });
+});

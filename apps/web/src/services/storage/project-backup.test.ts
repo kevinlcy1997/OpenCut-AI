@@ -348,3 +348,13 @@ test("the supported compound-depth boundary still round trips", async () => {
 	);
 	expect(restored.project.scenes).toEqual(project.scenes);
 });
+
+test("portable backup preserves display name separately from original filename and MIME", async () => {
+	const { project, assets } = fixture();
+	assets[0].name = "Interview";
+	const restored = await readProjectBackup(await createProjectBackup(project, assets));
+	expect(restored.assets[0].name).toBe("Interview");
+	expect(restored.assets[0].file.name).toBe("test.mp4");
+	expect(restored.assets[0].file.type).toBe("video/mp4");
+	expect(await restored.assets[0].file.arrayBuffer()).toEqual(await assets[0].file.arrayBuffer());
+});
