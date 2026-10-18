@@ -86,3 +86,8 @@ jobs:
           scripts/mac/test_local_access.py
           scripts/mac/test_validate_audio.py
           scripts/mac/test_validate_speed_ramp.py
+          scripts/mac/test_soak.py
+      - name: Test native media cancellation and cleanup
+        env:
+          PYTHONPATH: services/media-service
+        run: python -m unittest services/media-service/test_media.py

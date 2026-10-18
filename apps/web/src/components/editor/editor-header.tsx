@@ -19,17 +19,28 @@ import { ThemeToggle } from "../theme-toggle";
 import { SOCIAL_LINKS } from "@/constants/site-constants";
 import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
-import { CommandIcon, Logout05Icon, Search01Icon, SparklesIcon } from "@hugeicons/core-free-icons";
+import {
+	CommandIcon,
+	Logout05Icon,
+	Search01Icon,
+	SparklesIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import { OpenCutAILogo } from "@/components/footer";
 import { cn } from "@/utils/ui";
-import { AIStatusIndicator, type AIStatusInfo } from "@/components/editor/ai/ai-status-indicator";
+import {
+	AIStatusIndicator,
+	type AIStatusInfo,
+} from "@/components/editor/ai/ai-status-indicator";
 import { ViralityScoreModal } from "@/components/editor/virality-score-modal";
 import { useAIStatus } from "@/hooks/use-ai-status";
 import { useAIStore } from "@/stores/ai-store";
 import { aiClient } from "@/lib/ai-client";
-import { MemoryStatusBar, type MemoryStatusInfo } from "@/components/editor/ai/memory-status-bar";
+import {
+	MemoryStatusBar,
+	type MemoryStatusInfo,
+} from "@/components/editor/ai/memory-status-bar";
 import { SaveStatus } from "@/components/editor/save-status";
 import { VersionControlBar } from "@/components/editor/version-control-bar";
 import { VersionControlDrawer } from "@/components/editor/version-control-drawer";
@@ -44,7 +55,8 @@ import {
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 
 export function EditorHeader() {
-	const { isConnected, backendStatus, error, errorType, refresh } = useAIStatus();
+	const { isConnected, isChecking, backendStatus, error, errorType, refresh } =
+		useAIStatus();
 	const toggleSetupGuide = useAIStore((s) => s.toggleSetupGuide);
 	const [vcDrawerOpen, setVcDrawerOpen] = useState(false);
 	const [viralityOpen, setViralityOpen] = useState(false);
@@ -53,7 +65,8 @@ export function EditorHeader() {
 	useEffect(() => {
 		const handler = () => setVcDrawerOpen((prev) => !prev);
 		window.addEventListener("opencut:toggle-vc-drawer", handler);
-		return () => window.removeEventListener("opencut:toggle-vc-drawer", handler);
+		return () =>
+			window.removeEventListener("opencut:toggle-vc-drawer", handler);
 	}, []);
 
 	const memoryStatus: MemoryStatusInfo = useMemo(
@@ -69,6 +82,7 @@ export function EditorHeader() {
 	const aiStatusInfo: AIStatusInfo = useMemo(
 		() => ({
 			connected: isConnected,
+			checking: isChecking,
 			modelsLoaded: backendStatus?.models ?? [],
 			memoryUsageMb: backendStatus?.memoryUsage?.ram?.usedMb ?? 0,
 			memoryTotalMb: backendStatus?.memoryUsage?.ram?.totalMb ?? 0,
@@ -77,7 +91,7 @@ export function EditorHeader() {
 			errorType: errorType ?? undefined,
 			backendUrl: aiClient.getBaseUrl(),
 		}),
-		[isConnected, backendStatus, error, errorType],
+		[isConnected, isChecking, backendStatus, error, errorType],
 	);
 
 	return (
@@ -109,7 +123,10 @@ export function EditorHeader() {
 				<ExportButton />
 				<ThemeToggle />
 			</nav>
-			<VersionControlDrawer open={vcDrawerOpen} onOpenChange={setVcDrawerOpen} />
+			<VersionControlDrawer
+				open={vcDrawerOpen}
+				onOpenChange={setVcDrawerOpen}
+			/>
 			<ViralityScoreModal open={viralityOpen} onOpenChange={setViralityOpen} />
 		</header>
 	);
@@ -184,7 +201,10 @@ function ProjectDropdown() {
 		<>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" className="p-0 rounded-sm size-10 [&_svg]:!size-auto">
+					<Button
+						variant="ghost"
+						className="p-0 rounded-sm size-10 [&_svg]:!size-auto"
+					>
 						<OpenCutAILogo size={36} />
 					</Button>
 				</DropdownMenuTrigger>
@@ -236,8 +256,7 @@ function ProjectDropdown() {
 					</DropdownMenuItem>
 
 					<DropdownMenuSeparator />
-
-					</DropdownMenuContent>
+				</DropdownMenuContent>
 			</DropdownMenu>
 			<RenameProjectDialog
 				isOpen={openDialog === "rename"}
@@ -273,17 +292,62 @@ function FeaturesDialog({
 	const { setActiveTab } = useAssetsPanelStore();
 
 	const features = [
-		{ name: "AI Studio", desc: "AI-powered editing: remove silences, filler words, auto-caption", tab: "ai" as const, shortcut: "Ctrl+K" },
-		{ name: "Version History", desc: "Git-like commits, branches, merging, and diff for video — always in the header bar", shortcut: "Ctrl+Shift+S" },
-		{ name: "Media", desc: "Import and manage video, audio, and image files", tab: "media" as const },
-		{ name: "Text", desc: "Add and style text overlays on your video", tab: "text" as const },
-		{ name: "Captions & Transcript", desc: "Auto-generate subtitles from speech", tab: "captions" as const },
-		{ name: "Audio", desc: "Sound effects, AI voiceover, and podcast clip extraction", tab: "audio" as const },
-		{ name: "Elements", desc: "Stickers, emojis, and overlay transitions", tab: "elements" as const },
-		{ name: "Visuals", desc: "Effects, color filters, and manual adjustments", tab: "visuals" as const },
-		{ name: "Brand Kit", desc: "Brand colors, fonts, logos, and quick overlays", tab: "brandkit" as const },
-		{ name: "Fact Check", desc: "AI-powered claim verification (in Settings)", tab: "settings" as const },
-		{ name: "Command Palette", desc: "Search any feature, action, or shortcut instantly", shortcut: "Ctrl+Shift+P" },
+		{
+			name: "AI Studio",
+			desc: "AI-powered editing: remove silences, filler words, auto-caption",
+			tab: "ai" as const,
+			shortcut: "Ctrl+K",
+		},
+		{
+			name: "Version History",
+			desc: "Git-like commits, branches, merging, and diff for video — always in the header bar",
+			shortcut: "Ctrl+Shift+S",
+		},
+		{
+			name: "Media",
+			desc: "Import and manage video, audio, and image files",
+			tab: "media" as const,
+		},
+		{
+			name: "Text",
+			desc: "Add and style text overlays on your video",
+			tab: "text" as const,
+		},
+		{
+			name: "Captions & Transcript",
+			desc: "Auto-generate subtitles from speech",
+			tab: "captions" as const,
+		},
+		{
+			name: "Audio",
+			desc: "Sound effects, AI voiceover, and podcast clip extraction",
+			tab: "audio" as const,
+		},
+		{
+			name: "Elements",
+			desc: "Stickers, emojis, and overlay transitions",
+			tab: "elements" as const,
+		},
+		{
+			name: "Visuals",
+			desc: "Effects, color filters, and manual adjustments",
+			tab: "visuals" as const,
+		},
+		{
+			name: "Brand Kit",
+			desc: "Brand colors, fonts, logos, and quick overlays",
+			tab: "brandkit" as const,
+		},
+		{
+			name: "Fact Check",
+			desc: "AI-powered claim verification (in Settings)",
+			tab: "settings" as const,
+		},
+		{
+			name: "Command Palette",
+			desc: "Search any feature, action, or shortcut instantly",
+			shortcut: "Ctrl+Shift+P",
+		},
 	];
 
 	return (

@@ -1,0 +1,18 @@
+{
+  "scope": "Native regression logic only; local x86-64 Linux Docker emulation, not GitHub-hosted CI",
+  "source_commit": "b91cb53b87e8c8d978ae4012497d5565f044f0ca",
+  "command": "./scripts/mac/test-linux.sh",
+  "platform": "Linux-6.10.14-linuxkit-x86_64-with-glibc2.41",
+  "python": "3.11.17",
+  "image": "python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce",
+  "lock_sha256": "fe082ba4372c165c0331fe6deed024a68e59aac5c8d4a0bb7126fa000442ef07",
+  "tests": 41,
+  "seconds": 1.829,
+  "exit_code": 0,
+  "passed": true,
+  "isolation": "scripts/mac mounted read-only; no models, environment files or browser projects",
+  "limitations": [
+    "Does not verify the frontend build or the Windows/macOS CI matrix",
+    "Does not execute real AI inference or an editing stability session"
+  ]
+}

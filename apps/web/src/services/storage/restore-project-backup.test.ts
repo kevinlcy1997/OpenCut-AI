@@ -162,3 +162,71 @@ test("cleanup failure is surfaced with both underlying errors", async () => {
 	}
 	expect([...f.projects.keys()]).toEqual(["original"]);
 });
+
+test("a correctly hashed archive with broken clip references cannot flush or mutate storage, and retry works", async () => {
+	const f = await fixture();
+	const header = new Uint8Array(await f.archive.slice(0, 44).arrayBuffer());
+	const length = new DataView(header.buffer).getUint32(8, true);
+	const manifest = JSON.parse(await f.archive.slice(44, 44 + length).text());
+	manifest.project.scenes[0].tracks = [
+		{
+			id: "broken-track",
+			type: "video",
+			elements: [
+				{
+					id: "broken-clip",
+					type: "video",
+					startTime: 0,
+					duration: 1,
+				},
+			],
+		},
+	];
+	const json = new TextEncoder().encode(JSON.stringify(manifest));
+	new DataView(header.buffer).setUint32(8, json.length, true);
+	header.set(new Uint8Array(await crypto.subtle.digest("SHA-256", json)), 12);
+	const broken = new Blob([header, json, f.archive.slice(44 + length)]);
+	await expect(restoreProjectBackup(broken, f.options)).rejects.toThrow(
+		"invalid media reference",
+	);
+	expect(f.events).toEqual([]);
+	expect([...f.projects.keys()]).toEqual(["original"]);
+	expect(f.media.size).toBe(0);
+	const restoredId = await restoreProjectBackup(f.archive, f.options);
+	expect(f.projects.has("original")).toBe(true);
+	expect(f.projects.has(restoredId)).toBe(true);
+	expect(f.media.get(restoredId)).toEqual(["first", "second"]);
+});
+
+test("excessive archive nesting is rejected before admission, journal or storage work", async () => {
+	const f = await fixture();
+	const header = new Uint8Array(await f.archive.slice(0, 44).arrayBuffer());
+	const length = new DataView(header.buffer).getUint32(8, true);
+	const manifest = JSON.parse(await f.archive.slice(44, 44 + length).text());
+	let extension: unknown = { value: "leaf" };
+	for (let depth = 0; depth < 258; depth++) extension = { nested: extension };
+	manifest.project.scenes[0].extension = extension;
+	const json = new TextEncoder().encode(JSON.stringify(manifest));
+	new DataView(header.buffer).setUint32(8, json.length, true);
+	header.set(new Uint8Array(await crypto.subtle.digest("SHA-256", json)), 12);
+	const archive = new Blob([header, json, f.archive.slice(44 + length)]);
+	let admissionCalled = false;
+	await expect(
+		restoreProjectBackup(archive, {
+			...f.options,
+			estimate: async () => {
+				admissionCalled = true;
+				return { quota: 1024 };
+			},
+			journal: {
+				run: async () => {
+					throw new Error("journal must not start");
+				},
+			},
+		}),
+	).rejects.toThrow("metadata nesting");
+	expect(admissionCalled).toBe(false);
+	expect(f.events).toEqual([]);
+	expect([...f.projects.keys()]).toEqual(["original"]);
+	expect(f.media.size).toBe(0);
+});

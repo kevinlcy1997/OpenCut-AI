@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "image_id": "sha256:a470461db3d4079fb4cb545328a6ef7c7d1ffc33e6981f5d3e2cfda1634d297e",
+  "dump_bytes": 38396,
+  "dump_sha256": "a814d5f82046cfa5d01bc23d3cb9359c0f7cd8e85ee934ff9955600f0c058b85",
+  "schema_sha256": "d01622d39b185c0c691cd0a3c6a815cff608bf8fd6dc2889b7c37514ade0397e",
+  "schema_matches": true,
+  "table_count": 15,
+  "row_count": 0,
+  "table_counts_and_row_digests_match": true,
+  "source_unchanged_during_check": true,
+  "synthetic_probe_rows": 3,
+  "synthetic_row_recovery_matches": true,
+  "synthetic_types": [
+    "Unicode/newline text",
+    "JSONB",
+    "bytea",
+    "numeric",
+    "SQL NULL"
+  ],
+  "isolation": "same image ID, network none, no host ports, tmpfs database, no live restore",
+  "limitations": [
+    "Point-in-time rehearsal; concurrent source writes cause a conservative failure",
+    "Does not verify browser project/media storage or cross-version migrations",
+    "Server data coverage is limited to rows present at measurement time"
+  ]
+}

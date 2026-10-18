@@ -8,6 +8,8 @@ const HEADER = 44;
 const CHUNK = 8 * 1024 * 1024;
 const MAX_MANIFEST = 16 * 1024 * 1024;
 const MAX_ARCHIVE = 8 * 1024 ** 3;
+const MAX_COMPOUND_DEPTH = 32;
+const MAX_REFERENCE_DEPTH = 256;
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const date = z.string().refine((value) => Number.isFinite(Date.parse(value)));
 const positive = z.number().finite().positive();
@@ -256,7 +258,11 @@ function validateReferences(
 	}
 	const trackIds = new Set<string>();
 	const elementIds = new Set<string>();
-	const validateTracks = (tracks: unknown): void => {
+	const validateTracks = (tracks: unknown, depth = 0): void => {
+		if (depth > MAX_COMPOUND_DEPTH)
+			throw new Error(
+				"Backup compound nesting exceeds the supported limit (32)",
+			);
 		const parsed =
 			projectSchema.shape.scenes.element.shape.tracks.parse(tracks);
 		for (const track of parsed) {
@@ -269,7 +275,27 @@ function validateReferences(
 				elementIds.add(clip.id);
 				if (!Number.isFinite(clip.startTime + clip.duration))
 					throw new Error("Backup timeline duration exceeds numeric range");
-				if (clip.type === "compound") validateTracks(clip.innerTracks);
+				if (
+					clip.type === "video" ||
+					clip.type === "image" ||
+					(clip.type === "audio" && clip.sourceType === "upload")
+				) {
+					if (!id.safeParse(clip.mediaId).success)
+						throw new Error("Backup clip has an invalid media reference");
+				}
+				if (clip.type === "audio") {
+					if (clip.sourceType !== "upload" && clip.sourceType !== "library")
+						throw new Error("Backup audio clip has an invalid source type");
+					if (
+						clip.sourceType === "library" &&
+						(typeof clip.sourceUrl !== "string" || !clip.sourceUrl.trim())
+					)
+						throw new Error(
+							"Backup library audio clip is missing its source URL",
+						);
+				}
+				if (clip.type === "compound")
+					validateTracks(clip.innerTracks, depth + 1);
 			}
 		}
 	};
@@ -279,17 +305,23 @@ function validateReferences(
 		elementIds.clear();
 		validateTracks(scene.tracks);
 	}
-	const visit = (value: unknown): void => {
-		if (!value || typeof value !== "object") return;
-		if (Array.isArray(value)) {
-			for (const item of value) visit(item);
-			return;
-		}
+	// Use an explicit stack: extension fields are untrusted JSON too, and may
+	// contain media references or nesting much deeper than compound tracks.
+	const pending: { value: unknown; depth: number }[] = [
+		{ value: project.scenes, depth: 0 },
+	];
+	while (pending.length) {
+		const { value, depth } = pending.pop()!;
+		if (!value || typeof value !== "object") continue;
+		if (depth > MAX_REFERENCE_DEPTH)
+			throw new Error(
+				"Backup metadata nesting exceeds the supported limit (256)",
+			);
 		for (const [key, item] of Object.entries(value)) {
 			if (key === "mediaId" && typeof item === "string" && !mediaIds.has(item))
 				throw new Error("Backup is missing referenced media");
-			visit(item);
+			if (item && typeof item === "object")
+				pending.push({ value: item, depth: depth + 1 });
 		}
-	};
-	visit(project.scenes);
+	}
 }

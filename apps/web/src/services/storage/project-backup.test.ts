@@ -132,7 +132,9 @@ describe("portable project backup", () => {
 	test("rejects duplicate media IDs before restoring", async () => {
 		const { project, assets } = fixture();
 		assets.push({ ...assets[0] });
-		await expect(createProjectBackup(project, assets)).rejects.toThrow("Duplicate media ID");
+		await expect(createProjectBackup(project, assets)).rejects.toThrow(
+			"Duplicate media ID",
+		);
 	});
 	test("detects corrupted media", async () => {
 		const { project, assets } = fixture();
@@ -226,4 +228,123 @@ test("validates nested compound timelines before creating an archive", async () 
 	await readProjectBackup(await createProjectBackup(project, assets));
 	Object.assign(inner.elements[0], { playbackRate: -1 });
 	await expect(createProjectBackup(project, assets)).rejects.toThrow();
+});
+
+for (const type of ["video", "image", "audio"] as const) {
+	for (const mediaId of [undefined, null, 123, "", "../outside"]) {
+		test(`rejects ${type} clip with invalid media reference ${String(mediaId)}`, async () => {
+			const { project, assets } = fixture();
+			Object.assign(project.scenes[0].tracks[0].elements[0], {
+				type,
+				sourceType: "upload",
+				mediaId,
+			});
+			await expect(createProjectBackup(project, assets)).rejects.toThrow(
+				"invalid media reference",
+			);
+		});
+	}
+}
+
+test("rejects invalid audio sources while retaining library audio", async () => {
+	const { project, assets } = fixture();
+	const clip = project.scenes[0].tracks[0].elements[0];
+	Object.assign(clip, { type: "audio", sourceType: "unknown" });
+	await expect(createProjectBackup(project, assets)).rejects.toThrow(
+		"invalid source type",
+	);
+	Object.assign(clip, { sourceType: "library", sourceUrl: " " });
+	await expect(createProjectBackup(project, assets)).rejects.toThrow(
+		"source URL",
+	);
+	Object.assign(clip, { sourceUrl: "https://example.com/audio.mp3" });
+	await readProjectBackup(await createProjectBackup(project, assets));
+});
+
+test("restore rejects a correctly hashed manifest with a missing clip reference", async () => {
+	const { project, assets } = fixture();
+	const archive = await createProjectBackup(project, assets);
+	const header = new Uint8Array(await archive.slice(0, 44).arrayBuffer());
+	const length = new DataView(header.buffer).getUint32(8, true);
+	const manifest = JSON.parse(await archive.slice(44, 44 + length).text());
+	delete manifest.project.scenes[0].tracks[0].elements[0].mediaId;
+	const json = new TextEncoder().encode(JSON.stringify(manifest));
+	new DataView(header.buffer).setUint32(8, json.length, true);
+	header.set(new Uint8Array(await crypto.subtle.digest("SHA-256", json)), 12);
+	await expect(
+		readProjectBackup(new Blob([header, json, archive.slice(44 + length)])),
+	).rejects.toThrow("invalid media reference");
+});
+
+test("deep compound archives fail with a supported-limit error rather than exhausting the call stack", async () => {
+	const { project, assets } = fixture();
+	let inner: unknown = project.scenes[0].tracks;
+	for (let level = 0; level < 33; level++) {
+		inner = [
+			{
+				id: `nested-track-${level}`,
+				type: "video",
+				elements: [
+					{
+						id: `compound-${level}`,
+						type: "compound",
+						startTime: 0,
+						duration: 1,
+						innerTracks: inner,
+					},
+				],
+			},
+		];
+	}
+	project.scenes[0].tracks = inner as TProject["scenes"][number]["tracks"];
+	await expect(createProjectBackup(project, assets)).rejects.toThrow(
+		"compound nesting",
+	);
+});
+
+test("deep extension metadata fails cleanly while normal nested media references remain checked", async () => {
+	const { project, assets } = fixture();
+	let extension: unknown = { mediaId: "media" };
+	for (let level = 0; level < 258; level++) extension = { nested: extension };
+	Object.assign(project.scenes[0], { extension });
+	await expect(createProjectBackup(project, assets)).rejects.toThrow(
+		"metadata nesting",
+	);
+	Object.assign(project.scenes[0], {
+		extension: { nested: { mediaId: "missing" } },
+	});
+	await expect(createProjectBackup(project, assets)).rejects.toThrow(
+		"missing referenced media",
+	);
+	Object.assign(project.scenes[0], {
+		extension: { nested: { mediaId: "media" } },
+	});
+	await readProjectBackup(await createProjectBackup(project, assets));
+});
+
+test("the supported compound-depth boundary still round trips", async () => {
+	const { project, assets } = fixture();
+	let inner: unknown = project.scenes[0].tracks;
+	for (let level = 0; level < 32; level++) {
+		inner = [
+			{
+				id: `boundary-track-${level}`,
+				type: "video",
+				elements: [
+					{
+						id: `boundary-compound-${level}`,
+						type: "compound",
+						startTime: 0,
+						duration: 1,
+						innerTracks: inner,
+					},
+				],
+			},
+		];
+	}
+	project.scenes[0].tracks = inner as TProject["scenes"][number]["tracks"];
+	const restored = await readProjectBackup(
+		await createProjectBackup(project, assets),
+	);
+	expect(restored.project.scenes).toEqual(project.scenes);
 });

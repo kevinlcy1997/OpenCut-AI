@@ -3,6 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import hashlib
 import json
+import logging
 import os
 import platform
 from pathlib import Path
@@ -30,6 +31,7 @@ assets = {}
 jobs = {}
 tasks = {}
 worker_lock = asyncio.Lock()
+logger = logging.getLogger(__name__)
 
 
 class Clip(BaseModel):
@@ -178,18 +180,33 @@ async def capabilities():
             "excluded": ["effects", "transitions", "text", "masks", "speed-changes", "HDR"]}
 
 
+def cleanup_expired():
+    now = time.time()
+    protected = {asset for job in jobs.values() if job["state"] in {"queued", "running"} for asset in job["asset_ids"]}
+    for asset, info in list(assets.items()):
+        if asset not in protected and now - info["used"] > 3600:
+            try:
+                info["path"].unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning("Could not expire native asset %s: %s", asset, error)
+                continue
+            del assets[asset]
+    for key, job in list(jobs.items()):
+        if job["state"] not in {"queued", "running"} and now - job["updated"] > 3600:
+            try:
+                (STORE / f"{key}.mp4").unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning("Could not expire native job %s: %s", key, error)
+                continue
+            del jobs[key]
+
+
 async def cleanup():
     while True:
         await asyncio.sleep(60)
-        protected = {asset for job in jobs.values() if job["state"] in {"queued", "running"} for asset in job["asset_ids"]}
-        for asset, info in list(assets.items()):
-            if asset not in protected and time.time() - info["used"] > 3600:
-                info["path"].unlink(missing_ok=True)
-                del assets[asset]
-        for key, job in list(jobs.items()):
-            if job["state"] not in {"queued", "running"} and time.time() - job["updated"] > 3600:
-                (STORE / f"{key}.mp4").unlink(missing_ok=True)
-                del jobs[key]
+        # One inaccessible file must not kill expiry for the whole worker.
+        # Keep failed entries so the next sweep can retry them.
+        cleanup_expired()
 
 
 @asynccontextmanager
@@ -293,39 +310,50 @@ async def upload(file: UploadFile = File(...)):
 
 
 async def execute(job_id, request):
+    try:
+        # Retain serialization until encoder termination and partial-file cleanup
+        # finish, including cancellation. Queued jobs must not overlap that work.
+        async with worker_lock:
+            await _execute_locked(job_id, request)
+    except asyncio.CancelledError:
+        jobs[job_id].update(state="cancelled", updated=time.time())
+        tasks.pop(job_id, None)
+        raise
+
+
+async def _execute_locked(job_id, request):
     job = jobs[job_id]
     output = STORE / f"{job_id}.mp4"
     process = None
     try:
-        async with worker_lock:
-            job.update(state="running", updated=time.time())
-            if disk_usage() + sum(c.duration for c in request.clips) * request.bitrate / 8 > LIMIT:
-                raise RuntimeError("Insufficient temporary media quota for this export")
-            process = await asyncio.create_subprocess_exec(*command(request, output), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            async def errors():
-                tail = b""
-                while chunk := await process.stderr.read(4096):
-                    tail = (tail + chunk)[-4096:]
-                return tail
-            error_task = asyncio.create_task(errors())
-            try:
-                while line := await process.stdout.readline():
-                    if line.startswith(b"out_time_us="):
-                        try:
-                            job["progress"] = min(.99, int(line.split(b"=")[1]) / 1_000_000 / sum(c.duration for c in request.clips))
-                        except ValueError:
-                            pass
-                    if disk_usage() > LIMIT:
-                        raise RuntimeError("Native media storage limit exceeded while encoding")
-                await process.wait()
-                stderr = await error_task
-                if process.returncode:
-                    raise RuntimeError(stderr.decode(errors="replace"))
-            finally:
-                if not error_task.done():
-                    error_task.cancel()
-                    await asyncio.gather(error_task, return_exceptions=True)
-            job.update(state="complete", progress=1, updated=time.time())
+        job.update(state="running", updated=time.time())
+        if disk_usage() + sum(c.duration for c in request.clips) * request.bitrate / 8 > LIMIT:
+            raise RuntimeError("Insufficient temporary media quota for this export")
+        process = await asyncio.create_subprocess_exec(*command(request, output), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        async def errors():
+            tail = b""
+            while chunk := await process.stderr.read(4096):
+                tail = (tail + chunk)[-4096:]
+            return tail
+        error_task = asyncio.create_task(errors())
+        try:
+            while line := await process.stdout.readline():
+                if line.startswith(b"out_time_us="):
+                    try:
+                        job["progress"] = min(.99, int(line.split(b"=")[1]) / 1_000_000 / sum(c.duration for c in request.clips))
+                    except ValueError:
+                        pass
+                if disk_usage() > LIMIT:
+                    raise RuntimeError("Native media storage limit exceeded while encoding")
+            await process.wait()
+            stderr = await error_task
+            if process.returncode:
+                raise RuntimeError(stderr.decode(errors="replace"))
+        finally:
+            if not error_task.done():
+                error_task.cancel()
+                await asyncio.gather(error_task, return_exceptions=True)
+        job.update(state="complete", progress=1, updated=time.time())
     except asyncio.CancelledError:
         job.update(state="cancelled", updated=time.time())
         raise
@@ -339,9 +367,13 @@ async def execute(job_id, request):
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
-        if job["state"] != "complete":
-            output.unlink(missing_ok=True)
-        tasks.pop(job_id, None)
+        try:
+            if job["state"] != "complete":
+                output.unlink(missing_ok=True)
+        except OSError as error:
+            job.update(error=f"{job.get('error', '')}; Temporary output cleanup failed: {error}"[-2048:], updated=time.time())
+        finally:
+            tasks.pop(job_id, None)
 
 
 @app.post("/jobs", status_code=202)
@@ -394,9 +426,10 @@ async def download(job_id: str):
 async def delete_asset(asset_id: str):
     if any(asset_id in job["asset_ids"] and job["state"] in {"running", "queued"} for job in jobs.values()):
         raise HTTPException(409, "Asset is in use")
-    info = assets.pop(asset_id, None)
+    info = assets.get(asset_id)
     if info:
         info["path"].unlink(missing_ok=True)
+        assets.pop(asset_id, None)
     return {"deleted": bool(info)}
 
 

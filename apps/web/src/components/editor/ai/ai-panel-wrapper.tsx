@@ -25,7 +25,12 @@ export function AIPanelWrapper() {
 		backendStatus,
 	} = useAIStore();
 	const { executeCommand, isExecuting } = useAICommand();
-	const { isConnected, error: connectionError, errorType } = useAIStatus();
+	const {
+		isConnected,
+		isChecking,
+		error: connectionError,
+		errorType,
+	} = useAIStatus();
 
 	const [messages, setMessages] = useState<AIMessage[]>([]);
 	const [isSetupBannerDismissed, setIsSetupBannerDismissed] = useState(false);
@@ -106,9 +111,7 @@ export function AIPanelWrapper() {
 						? {
 								...msg,
 								actions: msg.actions?.map((a) =>
-									a.id === actionId
-										? { ...a, status: "applied" as const }
-										: a,
+									a.id === actionId ? { ...a, status: "applied" as const } : a,
 								),
 							}
 						: msg,
@@ -178,7 +181,8 @@ export function AIPanelWrapper() {
 		[backendStatus],
 	);
 
-	const showSetupBanner = !isConnected && !isSetupBannerDismissed;
+	const showSetupBanner =
+		!isChecking && !isConnected && !isSetupBannerDismissed;
 
 	return (
 		<>
@@ -209,7 +213,7 @@ export function AIPanelWrapper() {
 									? "The AI backend is not running. Start it to enable transcription, AI commands, and more."
 									: errorType === "timeout"
 										? "The AI backend is not responding. It may be starting up."
-										: connectionError ?? "Cannot connect to AI backend."}
+										: (connectionError ?? "Cannot connect to AI backend.")}
 							</p>
 						</div>
 						<div className="flex items-center gap-1.5 shrink-0">
@@ -227,10 +231,7 @@ export function AIPanelWrapper() {
 								className="size-6"
 								onClick={() => setIsSetupBannerDismissed(true)}
 							>
-								<HugeiconsIcon
-									icon={Cancel01Icon}
-									className="size-3"
-								/>
+								<HugeiconsIcon icon={Cancel01Icon} className="size-3" />
 							</Button>
 						</div>
 					</div>
@@ -242,7 +243,9 @@ export function AIPanelWrapper() {
 				className={cn(
 					"fixed top-[3.4rem] right-0 bottom-0 z-30 w-80 overflow-hidden",
 					"transition-transform duration-200 ease-out shadow-lg",
-					isCommandPanelOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+					isCommandPanelOpen
+						? "translate-x-0"
+						: "translate-x-full pointer-events-none",
 				)}
 			>
 				<AICommandPanel

@@ -1,3 +1,4 @@
+import { getAIConnectionState } from "@/lib/ai-connection";
 import { useEffect, useCallback, useRef } from "react";
 import { aiClient, AIClientError } from "@/lib/ai-client";
 import { useAIStore } from "@/stores/ai-store";
@@ -5,7 +6,10 @@ import type { AIErrorType } from "@/types/ai";
 
 const POLL_INTERVAL = 30_000;
 
-function classifyError(error: unknown): { message: string; errorType: AIErrorType } {
+function classifyError(error: unknown): {
+	message: string;
+	errorType: AIErrorType;
+} {
 	if (error instanceof AIClientError) {
 		return { message: error.message, errorType: error.errorType };
 	}
@@ -42,6 +46,7 @@ export function useAIStatus() {
 	}, [checkStatus]);
 
 	return {
+		isChecking: getAIConnectionState(backendStatus) === "checking",
 		isConnected: backendStatus?.available ?? false,
 		backendStatus,
 		error: backendStatus?.error ?? null,
