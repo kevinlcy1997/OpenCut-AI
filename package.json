@@ -13,7 +13,9 @@
     "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
     "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
     "test": "bun test",
-    "generate:fonts": "npx tsx apps/web/scripts/generate-font-sprites.ts"
+    "generate:fonts": "npx tsx apps/web/scripts/generate-font-sprites.ts",
+    "test:browser": "playwright test",
+    "test:browser:types": "tsc --project tsconfig.browser-tests.json"
   },
   "dependencies": {
     "@types/react": "^19.2.10",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.1.2",
+    "@playwright/test": "1.64.1",
     "turbo": "^2.7.5",
     "typescript": "5.8.3"
   },

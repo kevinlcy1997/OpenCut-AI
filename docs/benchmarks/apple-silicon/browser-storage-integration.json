@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "scope": "Five actual production-UI browser storage flows in fresh isolated Chromium contexts; no user profile accessed",
+  "playwright": "1.64.1",
+  "browser": "Chrome for Testing 156.0.8078.4 (Playwright chromium revision 1248, full Chromium headless channel)",
+  "stats": {
+    "startTime": "2026-10-18T05:01:55.196Z",
+    "duration": 7747.146,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "checks": [
+    {
+      "name": "real IndexedDB/OPFS restore survives reload and backup preserves originals",
+      "passed": true
+    },
+    {
+      "name": "correctly hashed malformed archive is rejected without replacing the open project",
+      "passed": true
+    },
+    {
+      "name": "real browser write quota failure preserves the project and recovers its journal before retry",
+      "passed": true
+    },
+    {
+      "name": "missing OPFS original blocks loading and reconnect restores the same project",
+      "passed": true
+    },
+    {
+      "name": "renderer crash after a staged original commit recovers abandoned restore without touching the existing project",
+      "passed": true
+    }
+  ],
+  "test_source_sha256": "725396334dfeedc024453f196d024f9d5beda8a2c56b703f487448b846b7b59c",
+  "config_sha256": "8067f51f78791886e443df2f97e30b93c960147296d312d28322c19e2aa50b04",
+  "raw_report_sha256": "7c77ed21bc5fa66275d65dc5166f3aeecb4f52c5855b3f22f0de3613eaa7d7e8",
+  "quota_method": "CDP effective quota set to 1 byte; navigator estimate remains optimistic; verified visible write/cleanup failure, preserved original backup, empty recovered journal, no staged OPFS originals, then successful retry",
+  "earlier_harness_failures": [
+    "Initial headless-shell run used a short navigation timeout",
+    "First full-Chromium baseline omitted welcome-dialog dismissal",
+    "Initial quota assertion expected admission refusal, but the actual effective-quota failure happened during writing/cleanup",
+    "Awaiting the Page.crash command cannot receive a renderer reply; corrected to await the page crash event"
+  ],
+  "limitations": [
+    "Synthetic SVG original and small projects only",
+    "Does not verify whole-browser termination, power loss, other interruption points, large archives, playback/export parity or 30-minute editing/AI stability",
+    "The default quota preflight remains unit-tested separately"
+  ],
+  "crash_method": "Pause only the isolated page after real OPFS close commits staged original bytes; crash actual renderer through CDP Page.crash; open a new page in the same context; verify abandoned journal and staged originals removed, existing backup bytes preserved, and restore retry succeeds"
+}

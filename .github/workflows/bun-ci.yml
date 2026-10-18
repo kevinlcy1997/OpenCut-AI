@@ -9,7 +9,7 @@ concurrency:
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/local-production-readiness"]
     paths-ignore:
       - "*.md"
   pull_request:
