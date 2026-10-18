@@ -26,16 +26,16 @@ test("a real partial frame is retained rather than rounded down", () => {
 	expect(frameCountForDuration(0, 30)).toBe(0);
 	expect(frameCountForDuration(Number.MIN_VALUE, 30)).toBe(1);
 });
-test("invalid timing fails before entering an encoder loop", () => {
-	for (const [duration, fps] of [
-		[NaN, 30],
-		[Infinity, 30],
-		[-1, 30],
-		[1, 0],
-		[1, -30],
-		[1, NaN],
-		[1, Infinity],
-		[Number.MAX_VALUE, 60],
-	])
-		expect(() => frameCountForDuration(duration, fps)).toThrow();
+test.each([
+	["NaN duration", NaN, 30],
+	["infinite duration", Infinity, 30],
+	["negative duration", -1, 30],
+	["zero fps", 1, 0],
+	["negative fps", 1, -30],
+	["NaN fps", 1, NaN],
+	["infinite fps", 1, Infinity],
+	["multiplication overflow", Number.MAX_VALUE, 60],
+	["unsafe finite frame count", Number.MAX_SAFE_INTEGER, 2],
+] as const)("invalid timing fails before encoding: %s", (_label, duration, fps) => {
+	expect(() => frameCountForDuration(duration, fps)).toThrow();
 });

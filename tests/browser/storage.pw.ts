@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -452,4 +453,53 @@ test("renderer crash after a staged original commit recovers abandoned restore w
 	} finally {
 		await recovery.close();
 	}
+});
+
+test("a second browser tab cannot edit an owned project and recovers it after the owner closes", async ({ page, context }) => {
+	const url = await restore(page, "Exclusive editor fixture");
+	const second = await context.newPage();
+	second.on("pageerror", (error) => uncaughtErrors.get(page)?.push(error.message));
+	try {
+		await second.goto(url);
+		await expect(second.getByText("This project is open in another tab. Close it there, then retry here.", { exact: true })).toBeVisible();
+		await expect(second.getByRole("button", { name: "Retry loading project", exact: true })).toBeVisible();
+		await expect(second.getByRole("button", { name: "Export", exact: true })).toHaveCount(0);
+		const locks = await second.evaluate(async () => (await navigator.locks.query()).held?.filter((lock) => lock.name?.startsWith("opencut-project:")));
+		expect(locks).toHaveLength(1);
+		expect(locks?.[0].name).toBe(`opencut-project:${url.split("/").pop()}`);
+		await page.close();
+		await second.getByRole("button", { name: "Retry loading project", exact: true }).click();
+		await expect(second.locator("input[readonly]")).toHaveValue("Exclusive editor fixture (restored)");
+		const welcome = second.getByRole("dialog", { name: "Welcome to OpenCut AI", exact: true });
+		if (await welcome.isVisible()) await welcome.getByRole("button", { name: "Close", exact: true }).click();
+		await settings(second);
+		const saved = await inspectDownloadedBackup(second);
+		expect(saved.project.metadata.id).toBe(url.split("/").pop());
+		expect(saved.project.scenes[0].tracks[0].elements[0].duration).toBe(1);
+	} finally {
+		await second.close();
+	}
+});
+
+
+test("restored project exports a downloadable video with exact frame count and visible original", async ({ page }) => {
+	await restore(page, "Browser export fixture");
+	await page.getByRole("button", { name: "Export", exact: true }).click();
+	await page.getByLabel("Include OpenCut AI watermark", { exact: true }).uncheck();
+	const downloaded = page.waitForEvent("download");
+	await page.getByRole("button", { name: "Export", exact: true }).last().click();
+	const output = await (await downloaded).path();
+	if (!output) throw new Error("Video download unavailable");
+	const probe = JSON.parse(execFileSync(process.env.FFPROBE || "ffprobe", ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", output], { encoding: "utf8" }));
+	const video = probe.streams.find((stream: { codec_type: string }) => stream.codec_type === "video");
+	expect(video.width).toBe(320);
+	expect(video.height).toBe(180);
+	expect(Number(video.nb_read_frames)).toBe(30);
+	expect(Math.abs(Number(probe.format.duration) - 1)).toBeLessThan(1 / 30);
+	const pixel = execFileSync(process.env.FFMPEG || "ffmpeg", ["-v", "error", "-i", output, "-vf", "crop=2:2:159:89,scale=1:1", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"]);
+	expect(pixel.length).toBe(3);
+	expect(pixel[0]).toBeGreaterThan(220);
+	expect(pixel[1]).toBeLessThan(30);
+	expect(pixel[2]).toBeLessThan(30);
+	await test.info().attach("encoded-video-probe", { body: JSON.stringify(probe, null, 2), contentType: "application/json" });
 });

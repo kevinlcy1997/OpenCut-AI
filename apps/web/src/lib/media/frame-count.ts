@@ -10,7 +10,8 @@ export function frameCountForDuration(duration: number, fps: number): number {
 			"Frame timing requires a finite duration and positive frame rate",
 		);
 	const frames = duration * fps;
-	if (!Number.isSafeInteger(Math.ceil(frames)))
+	// Check the product before rounding: finite inputs can multiply to Infinity.
+	if (!Number.isFinite(frames) || frames > Number.MAX_SAFE_INTEGER)
 		throw new Error("Frame count exceeds the supported numeric range");
 	const nearest = Math.round(frames);
 	// Division/multiplication and summed clip boundaries can straddle an integer
