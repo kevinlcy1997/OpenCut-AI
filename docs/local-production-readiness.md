@@ -17,6 +17,8 @@ The release must support browser-local media and projects on a loopback-hosted w
 
 The long session ran source b9ac5f2 before subsequent fixes. Its raw report, samples and trace are retained in ignored session-artifacts storage; the committed summary is mixed-editing-ai-session.json. Current source has a separate successful production rebuild and eleven-case browser smoke run. Neither result approves all codecs/effects, audible output or image-inclusive stability.
 
+Reverb repeatability follow-up: its room impulse previously used global randomness, so reconstructing the audio graph changed the sound between preview and export. The response now uses independent deterministic stereo noise sequences, preserving the existing room, damping and wet/dry controls. All 264 Bun tests (719 assertions) pass, including response identity across unrelated graph creation, stereo separation and parameter behavior. Browser harness type checking passes. Two new real OfflineAudioContext render cases cover 44.1/48 kHz repeatability, finite stereo tails, damping response and dry-signal identity; local execution is currently unverified because Chromium aborts during sandboxed launch before either case runs. This source change has not yet been rebuilt into the running website. Broader audio-effect correctness and audible checks remain open.
+
 ## Verified on 2026-10-16
 
 - Production Next.js build succeeded and launcher started all owned services healthy. Startup now defaults to production, with explicit `start --dev` for development and separate output directories.

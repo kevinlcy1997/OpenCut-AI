@@ -141,9 +141,17 @@ export const AUDIO_EFFECT_DEFINITIONS: Record<AudioEffectType, AudioEffectDefini
 
 			for (let channel = 0; channel < 2; channel++) {
 				const data = impulse.getChannelData(channel);
-				for (let i = 0; i < length; i++) {
+				// Rebuild the same room response for playback and every export.
+				// Independent channel seeds preserve stereo diffusion without
+				// depending on global randomness or graph creation order.
+				let noiseState = channel === 0 ? 0x12345678 : 0x87654321;
+				for (let i = 0; i < data.length; i++) {
+					noiseState ^= noiseState << 13;
+					noiseState ^= noiseState >>> 17;
+					noiseState ^= noiseState << 5;
+					const noise = (noiseState >>> 0) / 0x100000000;
 					const decay = Math.pow(1 - damping, i / sampleRate);
-					data[i] = (Math.random() * 2 - 1) * decay * Math.exp(-i / (length * 0.3));
+					data[i] = (noise * 2 - 1) * decay * Math.exp(-i / (length * 0.3));
 				}
 			}
 
