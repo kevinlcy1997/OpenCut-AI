@@ -503,3 +503,43 @@ test("restored project exports a downloadable video with exact frame count and v
 	expect(pixel[2]).toBeLessThan(30);
 	await test.info().attach("encoded-video-probe", { body: JSON.stringify(probe, null, 2), contentType: "application/json" });
 });
+
+
+test("split undo redo persist through production save and reopen", async ({ page }) => {
+	const url = await restore(page, "Editing history fixture");
+	const undo = page.getByRole("button", { name: "Undo (Ctrl+Z)", exact: true });
+	const redo = page.getByRole("button", { name: "Redo (Ctrl+Shift+Z)", exact: true });
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
+	await page.getByTitle("Click to edit time", { exact: true }).click();
+	await page.getByPlaceholder("00:00:00:00", { exact: true }).fill("00:00:00:15");
+	await page.getByPlaceholder("00:00:00:00", { exact: true }).press("Enter");
+	await expect(page.getByTitle("Click to edit time", { exact: true })).toHaveText("00:00:00:15");
+	await page.keyboard.press("ControlOrMeta+a");
+	await page.getByRole("button", { name: "Split element", exact: true }).click();
+	await expect(undo).toBeEnabled();
+	await settings(page);
+	let saved = await inspectDownloadedBackup(page);
+	let clips = saved.project.scenes[0].tracks[0].elements;
+	expect(clips).toHaveLength(2);
+	expect(clips.map((clip: { startTime: number; duration: number }) => [clip.startTime, clip.duration])).toEqual([[0, .5], [.5, .5]]);
+	await page.keyboard.press("Escape");
+	await undo.click();
+	await expect(redo).toBeEnabled();
+	await settings(page);
+	saved = await inspectDownloadedBackup(page);
+	expect(saved.project.scenes[0].tracks[0].elements).toHaveLength(1);
+	await page.keyboard.press("Escape");
+	await redo.click();
+	await expect(redo).toBeDisabled();
+	await settings(page);
+	saved = await inspectDownloadedBackup(page);
+	expect(saved.project.scenes[0].tracks[0].elements).toHaveLength(2);
+	await page.reload();
+	await expect(page.locator("input[readonly]")).toHaveValue("Editing history fixture (restored)");
+	await settings(page);
+	saved = await inspectDownloadedBackup(page);
+	expect(saved.project.metadata.id).toBe(url.split("/").pop());
+	clips = saved.project.scenes[0].tracks[0].elements;
+	expect(clips.map((clip: { startTime: number; duration: number }) => [clip.startTime, clip.duration])).toEqual([[0, .5], [.5, .5]]);
+});

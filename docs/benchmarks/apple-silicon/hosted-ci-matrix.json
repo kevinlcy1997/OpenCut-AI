@@ -1,0 +1,73 @@
+{
+  "head_sha": "9b319d7ccaa4de846bbdf3bee099876c2a1ad2fb",
+  "local_snapshot_sha": "9ed858cadf4d9ef2459b839b37fcee9464d6b94c",
+  "passed": true,
+  "scope": "Hosted production frontend build and Bun unit tests on macOS, Windows and Linux, plus Linux native/media unit tests, both push and pull_request events",
+  "runs": [
+    {
+      "id": 39099609168,
+      "url": "https://github.com/kevinlcy1997/OpenCut-AI/actions/runs/39099609168",
+      "jobs": [
+        {
+          "id": 117592998118,
+          "name": "native-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117592998206,
+          "name": "build (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117592998336,
+          "name": "build (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117592998346,
+          "name": "build (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 39099612889,
+      "url": "https://github.com/kevinlcy1997/OpenCut-AI/actions/runs/39099612889",
+      "jobs": [
+        {
+          "id": 117593007883,
+          "name": "native-unit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117593008035,
+          "name": "build (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117593008077,
+          "name": "build (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 117593008085,
+          "name": "build (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "These runs precede the timeline toolbar fix and Linux browser CI steps",
+    "Do not establish long-session editing/AI stability, hardware inference quality or complete media/effect parity"
+  ],
+  "prior_failure": "e6818f9 macOS PR invalid timing test intermittently returned Infinity while same-head push passed; explicit non-finite/product-range guard added before rounding. Both subsequent full hosted matrices pass; root runtime cause remains unproven."
+}

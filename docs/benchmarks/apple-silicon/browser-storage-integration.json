@@ -1,12 +1,12 @@
 {
   "passed": true,
-  "scope": "Seven production-UI integration tests in fresh isolated Chromium contexts",
+  "scope": "Eight production-UI integration tests in fresh isolated Chromium contexts",
   "playwright": "1.64.1",
   "browser": "Chrome for Testing 156.0.8078.4 (Playwright chromium revision 1248, full Chromium headless channel)",
   "stats": {
-    "startTime": "2026-10-18T05:08:43.081Z",
-    "duration": 11497.288999999999,
-    "expected": 7,
+    "startTime": "2026-10-18T05:14:12.672Z",
+    "duration": 11892.012,
+    "expected": 8,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
@@ -39,11 +39,15 @@
     {
       "name": "restored project exports a downloadable video with exact frame count and visible original",
       "passed": true
+    },
+    {
+      "name": "split undo redo persist through production save and reopen",
+      "passed": true
     }
   ],
-  "test_source_sha256": "aa8c7563abaf9dd0a18de44f196197fedc014160388c3ea5f1dc219c037f8f2a",
-  "config_sha256": "8067f51f78791886e443df2f97e30b93c960147296d312d28322c19e2aa50b04",
-  "raw_report_sha256": "de5538d083ccbd51379f7235899eddfb475f1887badd4f869048c84d8b1931a8",
+  "test_source_sha256": "9b486a895f48f3b458cda5f22aa1af846446351b53a781915c2de9796b5b2ba9",
+  "config_sha256": "ee64c54dd38cc0bc12a5561dbb339e734225b977d6ec7aac00805858976e7ea2",
+  "raw_report_sha256": "8c0883fb779322f5228898a427bb50b5d681c2c9bede97e4a039e6ae8e3e0cff",
   "quota_method": "CDP effective quota set to 1 byte; navigator estimate remains optimistic; verified visible write/cleanup failure, preserved original backup, empty recovered journal, no staged OPFS originals, then successful retry",
   "earlier_harness_failures": [
     "Initial headless-shell run used a short navigation timeout",
@@ -54,9 +58,9 @@
   "limitations": [
     "Synthetic SVG original and small projects only",
     "Does not verify whole-browser termination, power loss, other interruption points, large archives, playback/export parity or 30-minute editing/AI stability",
-    "The default quota preflight remains unit-tested separately",
-    "Seven-test run preceded rebuild of the numeric overflow guard; revalidation against rebuilt production site is pending"
+    "The default quota preflight remains unit-tested separately"
   ],
   "crash_method": "Pause only the isolated page after real OPFS close commits staged original bytes; crash actual renderer through CDP Page.crash; open a new page in the same context; verify abandoned journal and staged originals removed, existing backup bytes preserved, and restore retry succeeds",
-  "export_check": "Downloaded H.264 video inspected using FFprobe and FFmpeg: 320x180, 30 frames, 1-second duration within one frame, decoded center pixel red; watermark disabled through UI. No audio in synthetic original."
+  "export_check": "Downloaded H.264 video inspected using FFprobe and FFmpeg: 320x180, 30 frames, 1-second duration within one frame, decoded center pixel red; watermark disabled through UI. No audio in synthetic original.",
+  "production_rebuild": "Native production restart including timeline toolbar fix completed; all eight tests pass together in 11.9 seconds"
 }

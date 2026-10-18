@@ -12,6 +12,13 @@ export default defineConfig({
 		["line"],
 		["json", { outputFile: ".mac-runtime/browser-integration-report.json" }],
 	],
+	webServer: process.env.OPENCUT_BROWSER_START_SERVER === "1" ? {
+		command: "bun run start --hostname 127.0.0.1 --port 3000",
+		cwd: "./apps/web",
+		url: "http://127.0.0.1:3000/projects",
+		reuseExistingServer: false,
+		timeout: 60_000,
+	} : undefined,
 	use: {
 		baseURL: "http://127.0.0.1:3000",
 		browserName: "chromium",

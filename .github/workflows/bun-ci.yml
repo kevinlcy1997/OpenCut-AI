@@ -64,6 +64,30 @@ jobs:
 
       - name: Run tests
         run: bun test
+      - name: Check browser harness types
+        if: runner.os == 'Linux'
+        run: bun run test:browser:types
+      - name: Install browser and media inspection tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          bunx playwright install --with-deps chromium
+      - name: Verify production browser storage and export
+        if: runner.os == 'Linux'
+        env:
+          OPENCUT_BROWSER_START_SERVER: "1"
+        run: bun run test:browser
+      - name: Preserve browser failure diagnostics
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-integration-${{ github.event_name }}
+          path: |
+            .mac-runtime/browser-integration-report.json
+            .mac-runtime/browser-test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
   native-unit:
     runs-on: ubuntu-latest
