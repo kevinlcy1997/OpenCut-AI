@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { AUDIO_EFFECT_DEFINITIONS } from "./audio-effects";
+import {
+	AUDIO_EFFECT_DEFINITIONS,
+	prepareAudioEffects,
+	disposeAudioEffectNodes,
+	type TrackAudioEffect,
+} from "./audio-effects";
 
 function roomResponse(sampleRate: number, params: Record<string, number> = {}) {
 	let impulse: { channels: Float32Array[] } | undefined;
@@ -10,9 +15,14 @@ function roomResponse(sampleRate: number, params: Record<string, number> = {}) {
 		createConvolver: () => ({ connect() {}, buffer: null }),
 		createBuffer: (channels: number, length: number) => {
 			impulse = {
-				channels: Array.from({ length: channels }, () => new Float32Array(length)),
+				channels: Array.from(
+					{ length: channels },
+					() => new Float32Array(length),
+				),
 			};
-			return { getChannelData: (channel: number) => impulse!.channels[channel] };
+			return {
+				getChannelData: (channel: number) => impulse!.channels[channel],
+			};
 		},
 	} as unknown as BaseAudioContext;
 	AUDIO_EFFECT_DEFINITIONS.reverb.createNodes(context, params);
@@ -41,4 +51,75 @@ test("room and damping controls still change the response at both export sample 
 		expect(damped[0].slice(1).every((sample) => sample === 0)).toBe(true);
 		expect(normal[0].slice(1).some((sample) => sample !== 0)).toBe(true);
 	}
+});
+
+const gate: TrackAudioEffect = {
+	id: "gate",
+	type: "noise-gate",
+	enabled: true,
+	params: {},
+};
+
+test("custom DSP modules load once per context, retry failures and do not load for other effects", async () => {
+	let calls = 0;
+	let complete!: () => void;
+	const context = {
+		audioWorklet: {
+			addModule: () => {
+				calls++;
+				return new Promise<void>((resolve) => {
+					complete = resolve;
+				});
+			},
+		},
+	} as unknown as BaseAudioContext;
+	const first = prepareAudioEffects(context, [gate]);
+	const second = prepareAudioEffects(context, [gate]);
+	expect(calls).toBe(1);
+	complete();
+	await Promise.all([first, second]);
+	await prepareAudioEffects(context, [gate]);
+	expect(calls).toBe(1);
+	await prepareAudioEffects({} as BaseAudioContext, [
+		{ ...gate, enabled: false },
+	]);
+	await prepareAudioEffects({} as BaseAudioContext, [{ ...gate, type: "eq" }]);
+	await expect(
+		prepareAudioEffects({} as BaseAudioContext, [gate]),
+	).rejects.toThrow("AudioWorklet");
+	let fail = true;
+	let retries = 0;
+	const retryContext = {
+		audioWorklet: {
+			addModule: async () => {
+				retries++;
+				if (fail) throw new Error("network interrupted");
+			},
+		},
+	} as unknown as BaseAudioContext;
+	await expect(prepareAudioEffects(retryContext, [gate])).rejects.toThrow(
+		"network interrupted",
+	);
+	fail = false;
+	await prepareAudioEffects(retryContext, [gate]);
+	expect(retries).toBe(2);
+});
+
+test("effect disposal stops processor lifetime, closes its port and disconnects all nodes", () => {
+	const events: string[] = [];
+	const worklet = {
+		port: {
+			postMessage: (message: string) => events.push(message),
+			close: () => events.push("close"),
+		},
+		disconnect: () => events.push("disconnect-worklet"),
+	};
+	const gain = { disconnect: () => events.push("disconnect-gain") };
+	disposeAudioEffectNodes([worklet, gain] as unknown as AudioNode[]);
+	expect(events).toEqual([
+		"dispose",
+		"close",
+		"disconnect-worklet",
+		"disconnect-gain",
+	]);
 });

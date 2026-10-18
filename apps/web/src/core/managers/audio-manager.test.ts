@@ -178,3 +178,77 @@ test("an older playback start cannot overwrite a newer seek after context resume
 	expect(access.playbackStartTime).toBe(20);
 	expect(schedule).toHaveBeenCalledTimes(1);
 });
+
+test("pausing during DSP preparation prevents late audio scheduling", async () => {
+	const f = fixture();
+	const access = f.manager as unknown as {
+		ensureAudioContext(): AudioContext | null;
+		startPlayback(options: { time: number }): Promise<void>;
+		stopPlayback(): void;
+		scheduleUpcomingClips(): void;
+	};
+	const editor = (f.manager as unknown as { editor: EditorCore }).editor;
+	const tracks = spyOn(editor.timeline, "getTracks").mockReturnValue([
+		{
+			id: "audio",
+			type: "audio",
+			audioEffects: [
+				{ id: "gate", type: "noise-gate", enabled: true, params: {} },
+			],
+			elements: [],
+		},
+	] as any);
+	let complete!: () => void;
+	let started = false;
+	const context = {
+		state: "running",
+		currentTime: 0,
+		audioWorklet: {
+			addModule: () => {
+				started = true;
+				return new Promise<void>((resolve) => {
+					complete = resolve;
+				});
+			},
+		},
+	} as unknown as AudioContext;
+	const contextSpy = spyOn(access, "ensureAudioContext").mockReturnValue(
+		context,
+	);
+	const schedule = spyOn(access, "scheduleUpcomingClips").mockImplementation(
+		() => {},
+	);
+	try {
+		const start = access.startPlayback({ time: 0 });
+		expect(started).toBe(true);
+		access.stopPlayback();
+		complete();
+		await start;
+		expect(schedule).not.toHaveBeenCalled();
+	} finally {
+		tracks.mockRestore();
+		contextSpy.mockRestore();
+		schedule.mockRestore();
+	}
+});
+
+test("pausing disposes worklet processors and their graph immediately", () => {
+	const f = fixture();
+	const access = f.manager as unknown as {
+		effectNodes: AudioNode[];
+		stopPlayback(): void;
+	};
+	const events: string[] = [];
+	access.effectNodes = [
+		{
+			port: {
+				postMessage: (message: string) => events.push(message),
+				close: () => events.push("close"),
+			},
+			disconnect: () => events.push("disconnect"),
+		} as unknown as AudioNode,
+	];
+	access.stopPlayback();
+	expect(events).toEqual(["dispose", "close", "disconnect"]);
+	expect(access.effectNodes).toEqual([]);
+});

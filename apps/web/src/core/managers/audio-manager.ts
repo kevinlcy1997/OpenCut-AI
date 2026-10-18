@@ -1,11 +1,18 @@
-import { sourceOffsetAt, timelineOffsetAt, scheduleClipParameter } from "@/lib/media/clip-automation";
+import {
+	sourceOffsetAt,
+	timelineOffsetAt,
+	scheduleClipParameter,
+} from "@/lib/media/clip-automation";
 import type { EditorCore } from "@/core";
 import type { AudioClipSource } from "@/lib/media/audio";
 import { createAudioContext, collectAudioClips } from "@/lib/media/audio";
 import {
 	getAudioEffectDefinition,
+	prepareAudioEffects,
+	disposeAudioEffectNodes,
 	type TrackAudioEffect,
 } from "@/lib/audio/audio-effects";
+import { toast } from "sonner";
 import {
 	ALL_FORMATS,
 	AudioBufferSink,
@@ -18,6 +25,7 @@ export class AudioManager {
 	private audioContext: AudioContext | null = null;
 	private masterGain: GainNode | null = null;
 	private masterAnalyser: AnalyserNode | null = null;
+	private effectNodes: AudioNode[] = [];
 	private trackNodes = new Map<
 		string,
 		{
@@ -160,11 +168,9 @@ export class AudioManager {
 		const track = tracks.find((t) => t.id === trackId);
 		const trackVolume =
 			(track && ("volume" in track ? track.volume : undefined)) ?? 1;
-		const trackPan =
-			(track && ("pan" in track ? track.pan : undefined)) ?? 0;
+		const trackPan = (track && ("pan" in track ? track.pan : undefined)) ?? 0;
 		const audioEffects =
-			(track && "audioEffects" in track ? track.audioEffects : undefined) ??
-			[];
+			(track && "audioEffects" in track ? track.audioEffects : undefined) ?? [];
 
 		const gain = ctx.createGain();
 		gain.gain.value = trackVolume;
@@ -215,6 +221,19 @@ export class AudioManager {
 			if (!definition) continue;
 
 			const nodes = definition.createNodes(ctx, effect.params);
+			this.effectNodes.push(...nodes);
+			const sessionId = this.playbackSessionId;
+			for (const node of nodes) {
+				if (!("port" in node)) continue;
+				(node as AudioWorkletNode).onprocessorerror = () => {
+					if (sessionId !== this.playbackSessionId) return;
+					this.editor.playback.pause();
+					toast.error("Audio effect processing failed", {
+						description:
+							"Playback stopped. Try again or disable the affected effect.",
+					});
+				};
+			}
 			if (nodes.length === 0) continue;
 
 			previousOutput.connect(nodes[0]);
@@ -224,6 +243,8 @@ export class AudioManager {
 	}
 
 	private rebuildTrackNodes(): void {
+		disposeAudioEffectNodes(this.effectNodes);
+		this.effectNodes = [];
 		for (const [, nodes] of this.trackNodes) {
 			try {
 				nodes.gain.disconnect();
@@ -292,9 +313,7 @@ export class AudioManager {
 		const trackNodes = this.getOrCreateTrackNodes(trackWithClip.id);
 		if (!trackNodes) return this.masterGain;
 
-		const isSoloMode = tracks.some(
-			(t) => "solo" in t && t.solo,
-		);
+		const isSoloMode = tracks.some((t) => "solo" in t && t.solo);
 		const trackSolo = "solo" in trackWithClip ? trackWithClip.solo : false;
 
 		if (isSoloMode && !trackSolo) {
@@ -319,7 +338,6 @@ export class AudioManager {
 		if (!audioContext) return;
 
 		this.stopPlayback();
-		this.rebuildTrackNodes();
 		const sessionId = this.playbackSessionId;
 		this.playbackLatencyCompensationSeconds = 0;
 
@@ -334,8 +352,29 @@ export class AudioManager {
 		}
 
 		if (sessionId !== this.playbackSessionId) return;
+		try {
+			await prepareAudioEffects(
+				audioContext,
+				tracks.flatMap((track) =>
+					"audioEffects" in track ? (track.audioEffects ?? []) : [],
+				),
+			);
+		} catch (error) {
+			if (sessionId !== this.playbackSessionId) return;
+			this.editor.playback.pause();
+			toast.error("Could not prepare audio effects", {
+				description:
+					error instanceof Error ? error.message : "Try playback again.",
+			});
+			return;
+		}
+		if (sessionId !== this.playbackSessionId) return;
 		const clips = await collectAudioClips({ tracks, mediaAssets });
-		if (sessionId !== this.playbackSessionId || !this.editor.playback.getIsPlaying()) return;
+		if (
+			sessionId !== this.playbackSessionId ||
+			!this.editor.playback.getIsPlaying()
+		)
+			return;
 		this.clips = clips;
 
 		this.playbackStartTime = time;
@@ -394,6 +433,7 @@ export class AudioManager {
 			source.disconnect();
 		}
 		this.queuedSources.clear();
+		this.rebuildTrackNodes();
 	}
 
 	private async runClipIterator({
@@ -424,7 +464,9 @@ export class AudioManager {
 			return;
 		}
 		const rate = clip.playbackRate ?? 1;
-		const sourceStartTime = clip.trimStart + sourceOffsetAt(iteratorStartTime - clip.startTime, rate, clip.animations);
+		const sourceStartTime =
+			clip.trimStart +
+			sourceOffsetAt(iteratorStartTime - clip.startTime, rate, clip.animations);
 
 		let iterator: AsyncGenerator<WrappedAudioBuffer, void, unknown>;
 		try {
@@ -439,19 +481,57 @@ export class AudioManager {
 				if (!this.editor.playback.getIsPlaying()) return;
 				if (sessionId !== this.playbackSessionId) return;
 
-				const timelineTime = clip.startTime + timelineOffsetAt(timestamp - clip.trimStart, clip.duration, rate, clip.animations);
+				const timelineTime =
+					clip.startTime +
+					timelineOffsetAt(
+						timestamp - clip.trimStart,
+						clip.duration,
+						rate,
+						clip.animations,
+					);
 				if (timelineTime >= clipEnd) break;
-				const contextBase = this.playbackStartContextTime + this.playbackLatencyCompensationSeconds - this.playbackStartTime;
-				const startTimestamp = Math.max(audioContext.currentTime, contextBase + timelineTime, contextBase + iteratorStartTime);
-				const localStart = Math.max(0, startTimestamp - contextBase - clip.startTime);
+				const contextBase =
+					this.playbackStartContextTime +
+					this.playbackLatencyCompensationSeconds -
+					this.playbackStartTime;
+				const startTimestamp = Math.max(
+					audioContext.currentTime,
+					contextBase + timelineTime,
+					contextBase + iteratorStartTime,
+				);
+				const localStart = Math.max(
+					0,
+					startTimestamp - contextBase - clip.startTime,
+				);
 				if (localStart >= clip.duration) break;
-				const offset = Math.max(0, clip.trimStart + sourceOffsetAt(localStart, rate, clip.animations) - timestamp);
+				const offset = Math.max(
+					0,
+					clip.trimStart +
+						sourceOffsetAt(localStart, rate, clip.animations) -
+						timestamp,
+				);
 				if (offset >= buffer.duration) continue;
 				const node = audioContext.createBufferSource();
 				node.buffer = buffer;
 				const clipGain = audioContext.createGain();
-				scheduleClipParameter(node.playbackRate, "playbackRate", rate, clip.animations, localStart, clip.duration, startTimestamp);
-				scheduleClipParameter(clipGain.gain, "volume", clip.volume ?? 1, clip.animations, localStart, clip.duration, startTimestamp);
+				scheduleClipParameter(
+					node.playbackRate,
+					"playbackRate",
+					rate,
+					clip.animations,
+					localStart,
+					clip.duration,
+					startTimestamp,
+				);
+				scheduleClipParameter(
+					clipGain.gain,
+					"volume",
+					clip.volume ?? 1,
+					clip.animations,
+					localStart,
+					clip.duration,
+					startTimestamp,
+				);
 				node.connect(clipGain);
 				clipGain.connect(this.getTrackDestination(clip.id));
 				node.start(startTimestamp, offset);
@@ -465,25 +545,39 @@ export class AudioManager {
 
 				const aheadTime = timelineTime - this.getPlaybackTime();
 				if (aheadTime >= 1) {
-					await this.waitUntilCaughtUp({ timelineTime, targetAhead: 1, sessionId });
+					await this.waitUntilCaughtUp({
+						timelineTime,
+						targetAhead: 1,
+						sessionId,
+					});
 					if (sessionId !== this.playbackSessionId) return;
 				}
 			}
 		} catch {
 			// Input may have been disposed (e.g., track deleted during playback)
 		} finally {
-			if (this.clipIterators.get(clip.id) === iterator) this.clipIterators.delete(clip.id);
+			if (this.clipIterators.get(clip.id) === iterator)
+				this.clipIterators.delete(clip.id);
 		}
-
 
 		// don't remove from activeClipIds - prevents scheduler from restarting this clip
 		// the set is cleared on stopPlayback anyway
 	}
 
-	private waitUntilCaughtUp({ timelineTime, targetAhead, sessionId }: {
-		timelineTime: number; targetAhead: number; sessionId: number;
+	private waitUntilCaughtUp({
+		timelineTime,
+		targetAhead,
+		sessionId,
+	}: {
+		timelineTime: number;
+		targetAhead: number;
+		sessionId: number;
 	}): Promise<void> {
-		if (sessionId !== this.playbackSessionId || !this.editor.playback.getIsPlaying()) return Promise.resolve();
+		if (
+			sessionId !== this.playbackSessionId ||
+			!this.editor.playback.getIsPlaying()
+		)
+			return Promise.resolve();
 		return new Promise((resolve) => {
 			const finish = () => {
 				clearInterval(checkInterval);
@@ -491,7 +585,12 @@ export class AudioManager {
 				resolve();
 			};
 			const checkInterval = setInterval(() => {
-				if (sessionId !== this.playbackSessionId || !this.editor.playback.getIsPlaying() || timelineTime - this.getPlaybackTime() < targetAhead) finish();
+				if (
+					sessionId !== this.playbackSessionId ||
+					!this.editor.playback.getIsPlaying() ||
+					timelineTime - this.getPlaybackTime() < targetAhead
+				)
+					finish();
 			}, 100);
 			this.catchupWaiters.add(finish);
 		});
@@ -522,7 +621,11 @@ export class AudioManager {
 		this.trackNodes.clear();
 	}
 
-	private getAudioSink({ clip }: { clip: AudioClipSource }): Promise<AudioBufferSink | null> {
+	private getAudioSink({
+		clip,
+	}: {
+		clip: AudioClipSource;
+	}): Promise<AudioBufferSink | null> {
 		const existingSink = this.sinks.get(clip.sourceKey);
 		if (existingSink) return Promise.resolve(existingSink);
 		const pending = this.pendingSinks.get(clip.sourceKey);
@@ -536,11 +639,17 @@ export class AudioManager {
 		return loading;
 	}
 
-	private async openAudioSink(clip: AudioClipSource, generation: number): Promise<AudioBufferSink | null> {
+	private async openAudioSink(
+		clip: AudioClipSource,
+		generation: number,
+	): Promise<AudioBufferSink | null> {
 		let input: Input | undefined;
 		let retained = false;
 		try {
-			input = new Input({ source: new BlobSource(clip.file), formats: ALL_FORMATS });
+			input = new Input({
+				source: new BlobSource(clip.file),
+				formats: ALL_FORMATS,
+			});
 			// Register before awaiting metadata so project changes can cancel reads.
 			this.inputs.set(clip.sourceKey, input);
 			const audioTrack = await input.getPrimaryAudioTrack();
@@ -556,7 +665,8 @@ export class AudioManager {
 		} finally {
 			if (input && !retained) {
 				input.dispose();
-				if (this.inputs.get(clip.sourceKey) === input) this.inputs.delete(clip.sourceKey);
+				if (this.inputs.get(clip.sourceKey) === input)
+					this.inputs.delete(clip.sourceKey);
 			}
 		}
 	}

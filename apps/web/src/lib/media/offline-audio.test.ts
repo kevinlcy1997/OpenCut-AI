@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, spyOn } from "bun:test";
+import { AUDIO_EFFECT_DEFINITIONS } from "@/lib/audio/audio-effects";
 import {
 	audioSourceTime,
 	audioTimelineTime,
@@ -63,7 +64,7 @@ const track = {
 	volume: 0.5,
 	pan: -1,
 	elements: [],
-} as TimelineTrack;
+} as Extract<TimelineTrack, { type: "audio" }>;
 const clip: DecodedTimelineAudio = {
 	buffer: {} as AudioBuffer,
 	trackId: "audio",
@@ -76,6 +77,71 @@ const clip: DecodedTimelineAudio = {
 };
 
 describe("audio export graph", () => {
+	test("custom effect load failure rejects export rather than omitting the effect", async () => {
+		const fake = graph();
+		await expect(
+			renderTimelineAudio({
+				clips: [clip],
+				tracks: [
+					{
+						...track,
+						audioEffects: [
+							{ id: "gate", type: "noise-gate", enabled: true, params: {} },
+						],
+					},
+				],
+				duration: 8,
+				sampleRate: 48000,
+				createContext: () => fake.context,
+			}),
+		).rejects.toThrow("AudioWorklet");
+		expect(fake.sources.length).toBe(0);
+	});
+	test("processor failure rejects the rendered export and releases its processor", async () => {
+		const fake = graph();
+		const events: string[] = [];
+		const node = {
+			connect() {},
+			disconnect: () => events.push("disconnect"),
+			port: {
+				postMessage: (message: string) => events.push(message),
+				close: () => events.push("close"),
+			},
+			onprocessorerror: null as (() => void) | null,
+		};
+		Object.assign(fake.context, {
+			audioWorklet: { addModule: async () => {} },
+			startRendering: async () => {
+				node.onprocessorerror?.();
+				return {};
+			},
+		});
+		const create = spyOn(
+			AUDIO_EFFECT_DEFINITIONS["noise-gate"],
+			"createNodes",
+		).mockReturnValue([node as unknown as AudioNode]);
+		try {
+			await expect(
+				renderTimelineAudio({
+					clips: [clip],
+					tracks: [
+						{
+							...track,
+							audioEffects: [
+								{ id: "gate", type: "noise-gate", enabled: true, params: {} },
+							],
+						},
+					],
+					duration: 8,
+					sampleRate: 48000,
+					createContext: () => fake.context,
+				}),
+			).rejects.toThrow("processing failed");
+			expect(events).toEqual(["dispose", "close", "disconnect"]);
+		} finally {
+			create.mockRestore();
+		}
+	});
 	test("applies clip/track gain, pan, source trim, speed and timeline stop", async () => {
 		const fake = graph();
 		await renderTimelineAudio({
