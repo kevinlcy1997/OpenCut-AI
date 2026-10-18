@@ -31,6 +31,7 @@ assets = {}
 jobs = {}
 tasks = {}
 worker_lock = asyncio.Lock()
+upload_spool_reserved_bytes = 0
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +55,7 @@ class JobRequest(BaseModel):
 
 
 def disk_usage():
-    return sum(path.stat().st_size for folder in (STORE, STATE / "browser-benchmarks") for path in folder.glob("*") if path.is_file())
+    return upload_spool_reserved_bytes + sum(path.stat().st_size for folder in (STORE, STATE / "browser-benchmarks") for path in folder.glob("*") if path.is_file())
 
 
 def command(request, output):
@@ -258,6 +259,7 @@ class UploadBodyLimit:
             return await self.app(scope, receive, send)
         from fastapi.responses import JSONResponse
         maximum = ASSET_LIMIT + 1024 * 1024
+        global upload_spool_reserved_bytes
         async with self.lock:
             if disk_usage() + 2 * maximum > LIMIT:
                 return await JSONResponse({"detail": "Insufficient temporary upload space"}, status_code=413)(scope, receive, send)
@@ -269,7 +271,15 @@ class UploadBodyLimit:
                 if total > maximum:
                     raise HTTPException(413, "Upload body exceeds native storage limit")
                 return message
-            return await self.app(scope, limited_receive, send)
+            # Multipart TemporaryFile spools can be unlinked while still open,
+            # so directory stat totals cannot account for them. Reserve their
+            # maximum size until parsing, destination copy and file.close finish.
+            # Concurrent encoder quota checks must see this reservation too.
+            upload_spool_reserved_bytes += maximum
+            try:
+                return await self.app(scope, limited_receive, send)
+            finally:
+                upload_spool_reserved_bytes -= maximum
 
 
 app.add_middleware(UploadBodyLimit)

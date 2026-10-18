@@ -218,5 +218,67 @@ class JobLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(path.exists() for path in paths.values()))
 
 
+class UploadReservationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_upload_spool_space_is_reserved_for_concurrent_encoder_and_released(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.multiple(media, STATE=root, STORE=root, ASSET_LIMIT=16, LIMIT=10 * 1024**2):
+                observed = []
+                async def application(scope, receive, send):
+                    observed.append(media.disk_usage())
+                    await receive()
+                    observed.append(media.disk_usage())
+                guard = media.UploadBodyLimit(application)
+                scope = {"type": "http", "method": "POST", "path": "/assets"}
+                await guard(scope, AsyncMock(return_value={"type": "http.request", "body": b"x"}), AsyncMock())
+                self.assertEqual(observed, [1024**2 + 16] * 2)
+                self.assertEqual(media.disk_usage(), 0)
+
+    async def test_failed_upload_releases_its_spool_reservation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.multiple(media, STATE=root, STORE=root, ASSET_LIMIT=16, LIMIT=10 * 1024**2):
+                async def application(scope, receive, send):
+                    self.assertGreater(media.disk_usage(), 0)
+                    raise RuntimeError("disconnected upload")
+                guard = media.UploadBodyLimit(application)
+                with self.assertRaisesRegex(RuntimeError, "disconnected upload"):
+                    await guard({"type": "http", "method": "POST", "path": "/assets"}, AsyncMock(), AsyncMock())
+                self.assertEqual(media.disk_usage(), 0)
+
+
+    async def test_concurrent_encoder_cannot_consume_reserved_spool_space(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "existing").write_bytes(b"x" * (7 * 1024**2))
+            request = media.JobRequest(clips=[{"asset_id": "video", "duration": 1}], bitrate=3 * 1024**2 * 8)
+            with patch.multiple(media, STATE=root, STORE=root, ASSET_LIMIT=16, LIMIT=10 * 1024**2, worker_lock=asyncio.Lock()):
+                media.jobs["spool-budget"] = {"state": "queued", "asset_ids": ["video"]}
+                async def application(scope, receive, send):
+                    await media.execute("spool-budget", request)
+                with patch("app.asyncio.create_subprocess_exec", new=AsyncMock(side_effect=AssertionError("encoder started without spool headroom"))) as spawn:
+                    await media.UploadBodyLimit(application)({"type": "http", "method": "POST", "path": "/assets"}, AsyncMock(), AsyncMock())
+                    spawn.assert_not_called()
+                result = media.jobs.pop("spool-budget")
+                self.assertEqual(result["state"], "failed")
+                self.assertIn("Insufficient temporary media quota", result["error"])
+                self.assertEqual(media.disk_usage(), 7 * 1024**2)
+
+    async def test_cancelled_upload_releases_spool_space(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            started = asyncio.Event()
+            async def application(scope, receive, send):
+                started.set()
+                await asyncio.Event().wait()
+            with patch.multiple(media, STATE=root, STORE=root, ASSET_LIMIT=16, LIMIT=10 * 1024**2):
+                task = asyncio.create_task(media.UploadBodyLimit(application)({"type": "http", "method": "POST", "path": "/assets"}, AsyncMock(), AsyncMock()))
+                await started.wait()
+                self.assertEqual(media.disk_usage(), 1024**2 + 16)
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError): await task
+                self.assertEqual(media.disk_usage(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
