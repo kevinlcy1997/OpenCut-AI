@@ -4,6 +4,19 @@ Status: in progress; not approved for production use.
 
 The release must support browser-local media and projects on a loopback-hosted website, reliable save/reload and project switching, editing/undo/redo, audio/video playback, cancellation and export, recoverable failures, and documented backup/restore and startup. The existing Apple Silicon plan and its quality/performance gates remain applicable. Failed experimental acceleration stays disabled.
 
+## Current gates on 2026-10-18
+
+| Requirement | Current evidence | Status |
+| --- | --- | --- |
+| Native production startup and current build | Post-session production rebuild/restart succeeds | Passed |
+| Durable editing, save failure recovery, backup, reconnect, tab locking, crash recovery and smoke export | Eleven isolated browser cases pass on rebuilt local production; both hosted matrices pass on a0a36e7 | Passed for tested cases |
+| Native media upload/trim/cancellation and temporary storage ownership | 23 media tests; real interrupted upload returns descriptors14→12, no leftover asset; invalid trims422; native cancellation/queue/download probe passes | Passed for tested cases |
+| Loopback website access boundary | 24 live page/API checks pass after rebuild | Passed for tested boundary; full security acceptance remains open |
+| Sustained editing and AI | 1948.5 seconds including two-minute warm-up;47 editing/export/reload,47 transcription and47 Ollama HTTP successes; no page errors;9.1MiB peak additional post-warm-up swap; final-quarter median process RSS308.4MiB lower | Partial:47 image requests rejected; full acceptance failed |
+| Broad export/preview parity, image quality/performance, current-source full-session acceptance, cross-version upgrade/rollback | Incomplete; experimental media routing gates remain closed | Open |
+
+The long session ran source b9ac5f2 before subsequent fixes. Its raw report, samples and trace are retained in ignored session-artifacts storage; the committed summary is mixed-editing-ai-session.json. Current source has a separate successful production rebuild and eleven-case browser smoke run. Neither result approves all codecs/effects, audible output or image-inclusive stability.
+
 ## Verified on 2026-10-16
 
 - Production Next.js build succeeded and launcher started all owned services healthy. Startup now defaults to production, with explicit `start --dev` for development and separate output directories.
@@ -160,3 +173,5 @@ Screenshot: ../../outputs/production-editor-smoke.jpg (workspace artifact; not c
 
 - Publication a0a36e7 passes both complete hosted matrices (39101789555 push and39101792036 PR), including all eleven browser cases. The failed-save → Back → unload-protected Projects → restored writes → reopen/backup recovery is verified on hosted Chromium.
 - Partial-upload cleanup review reproduced an open rolled-to-disk spool after interrupted parsing, even though quota reservation was released. The native upload endpoint now owns the parser-created files in finally, including errors before FormData exists, with one file and no extra text fields accepted. OpenAPI retains the multipart file contract. The authorization wrapper is now plain ASGI so body-limit errors/cancellation propagate without BaseHTTPMiddleware task/stream wrapping; the prior wrapper converted the intended413 to500 under the interruption test. Three ASGI regressions verify disconnect400, body-limit413 and cancellation close the retained spool handle, release reservation and leave no destination files. All23 media tests pass without resource warnings. Deployment/live socket validation still awaits the live session ending.
+
+- Post-session deployment verification: archived raw session evidence before clearing browser output, then rebuilt/restarted current source successfully. Eleven local browser cases pass in17.2s with the native soak intentionally skipped. Live worker upload probe observes12→14→12 descriptors through interrupted parsing, no leftover asset, successful3,639,354-byte upload, and safe422 for all three invalid trim forms. Native cancellation/queue/input-protection/following-download probe repeats successfully on implementation7fcdb70635619385636ff5c0a407dfe85cf9ecf241c0e9d9ef5a91f63fc3f733. All24 live website access checks pass. Reports: browser-storage-integration.json, live-media-upload-validation.json, live-media-cancellation-post-soak.json, native-web-access-post-soak.json.
